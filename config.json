@@ -1,0 +1,19 @@
+{
+  "options": {
+    "paths": {
+      "root": "",
+      "fonts": "fonts",
+      "styles": "styles"
+    }
+  },
+  "styles": {
+    "default": {
+      "style": "styles/default/style.json"
+    }
+  },
+  "data": {
+    "glmap": {
+      "mbtiles": "data/glmap.mbtiles"
+    }
+  }
+}
