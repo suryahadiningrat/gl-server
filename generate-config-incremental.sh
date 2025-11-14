@@ -154,24 +154,24 @@ fi
 
 # Initialize glmap if not exists (should already exist from Step 1)
 if [ ! -f "$GLMAP_FILE" ]; then
-    echo "Creating new glmap.mbtiles (will contain grid + drone)..."
+    echo "Creating new glmap.mbtiles (DRONE ONLY - zoom 16-22)..."
     sqlite3 "$GLMAP_FILE" "
         CREATE TABLE metadata (name text PRIMARY KEY, value text);
         CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob);
         CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row);
-        INSERT INTO metadata (name, value) VALUES ('name', 'GL Map Combined');
+        INSERT INTO metadata (name, value) VALUES ('name', 'Drone Imagery (High Resolution)');
         INSERT INTO metadata (name, value) VALUES ('type', 'overlay');
         INSERT INTO metadata (name, value) VALUES ('format', 'jpg');
-        INSERT INTO metadata (name, value) VALUES ('description', 'Grid layer (zoom 0-14) + Drone imagery (zoom 16-22)');
+        INSERT INTO metadata (name, value) VALUES ('description', 'High-resolution drone imagery for detailed mapping');
         INSERT INTO metadata (name, value) VALUES ('version', '1.3');
-        INSERT INTO metadata (name, value) VALUES ('attribution', 'Grid + Drone Imagery');
-        INSERT INTO metadata (name, value) VALUES ('minzoom', '0');
+        INSERT INTO metadata (name, value) VALUES ('attribution', 'Drone Imagery');
+        INSERT INTO metadata (name, value) VALUES ('minzoom', '16');
         INSERT INTO metadata (name, value) VALUES ('maxzoom', '22');
         INSERT INTO metadata (name, value) VALUES ('bounds', '95.0,-11.0,141.0,6.0');
-        INSERT INTO metadata (name, value) VALUES ('center', '105.75,-2.75,10');
-        INSERT INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,10],\"minzoom\":0,\"maxzoom\":22}');
+        INSERT INTO metadata (name, value) VALUES ('center', '105.75,-2.75,18');
+        INSERT INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,18],\"minzoom\":16,\"maxzoom\":22}');
     "
-    echo "✓ New glmap.mbtiles initialized (DRONE ONLY - grid_layer separate)"
+    echo "✓ New glmap.mbtiles initialized (DRONE ONLY - zoom 16-22)"
 else
     echo "✓ Existing glmap.mbtiles found"
     # Check and fix metadata table structure
