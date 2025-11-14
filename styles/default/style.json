@@ -1,0 +1,53 @@
+{
+  "version": 8,
+  "name": "Drone Mapping with Grid Base Layer",
+  "sources": {
+    "grid": {
+      "type": "vector",
+      "tiles": ["/data/grid_layer/{z}/{x}/{y}.pbf"],
+      "minzoom": 0,
+      "maxzoom": 14
+    },
+    "glmap": {
+      "type": "raster",
+      "tiles": ["/data/glmap/{z}/{x}/{y}.jpg"],
+      "tileSize": 256,
+      "minzoom": 0,
+      "maxzoom": 21
+    }
+  },
+  "layers": [
+    {
+      "id": "grid-fill",
+      "type": "fill",
+      "source": "grid",
+      "source-layer": "grid_layer",
+      "minzoom": 0,
+      "maxzoom": 14,
+      "paint": {
+        "fill-color": "rgba(255, 192, 203, 0.3)",
+        "fill-outline-color": "#0066cc"
+      }
+    },
+    {
+      "id": "grid-line",
+      "type": "line",
+      "source": "grid",
+      "source-layer": "grid_layer",
+      "minzoom": 0,
+      "maxzoom": 14,
+      "paint": {
+        "line-color": "#0066cc",
+        "line-width": 1
+      }
+    },
+    {
+      "id": "glmap-raster",
+      "type": "raster",
+      "source": "glmap",
+      "paint": {
+        "raster-opacity": 1
+      }
+    }
+  ]
+}
