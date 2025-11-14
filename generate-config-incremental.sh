@@ -385,13 +385,19 @@ else
 fi
 echo "..."
 
-# Step 4: Restart container
+# Step 4: Restart container (before PMTiles generation)
 echo ""
+echo "=== Step 4: Restarting Tileserver Container ==="
 if command -v docker >/dev/null 2>&1; then
     echo "Restarting tileserver container..."
-    docker restart tileserver-zurich && echo "✓ Container restarted" || echo "✗ Restart failed"
+    if docker restart tileserver-zurich; then
+        echo "✓ Container restarted successfully"
+        echo "✓ New tiles are now available via XYZ URLs"
+    else
+        echo "✗ Restart failed"
+    fi
 else
-    echo "Docker not available - please restart container manually"
+    echo "⚠ Docker not available - please restart container manually"
 fi
 
 # Step 5: Generate PMTiles from glmap.mbtiles
@@ -674,9 +680,12 @@ if [ "$SKIP_DB_UPDATE" != "true" ]; then
     echo "=== Step 7: Database Update ==="
     echo "Database update code here (using previous implementation)"
     # TODO: Add database update code
+    # Connection: PostgreSQL at 172.26.11.153:5432
+    # Table: geoportal.pmn_drone_imagery
+    # Update coordinates from mbtiles metadata
 else
     echo ""
-    echo "Database update skipped"
+    echo "⚠ Database update skipped (SKIP_DB_UPDATE=true)"
 fi
 
 # Cleanup
