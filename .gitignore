@@ -1,8 +1,4 @@
-# Tile files
-data/*.mbtiles
-data/*.pmtiles
-*.mbtiles
-*.pmtiles
+data/*
 
 # Logs
 *.log
