@@ -510,6 +510,14 @@ if [ -f "$PMTILES_FILE" ]; then
         echo "Configuring MinIO client..."
         mc alias set "$MC_ALIAS" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure >/dev/null 2>&1
         
+        # Check if file exists
+        echo "Checking if file exists in MinIO..."
+        if mc stat "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure >/dev/null 2>&1; then
+            echo "⚠ File already exists - will be replaced"
+        else
+            echo "✓ New file - will be uploaded"
+        fi
+        
         # Upload with progress
         echo "Uploading file (this may take a while)..."
         if mc cp "$PMTILES_FILE" "$MC_ALIAS/$S3_BUCKET/$S3_PATH/" --insecure; then
@@ -536,8 +544,16 @@ if [ -f "$PMTILES_FILE" ]; then
         export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY"
         export AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY"
         
+        # Check if file exists
+        echo "Checking if file exists in MinIO..."
+        if aws s3 ls "$S3_DEST" --endpoint-url "$S3_HOST" --no-verify-ssl >/dev/null 2>&1; then
+            echo "⚠ File already exists - will be replaced"
+        else
+            echo "✓ New file - will be uploaded"
+        fi
+        
         # Upload with simple method (not multipart for compatibility)
-        echo "  Uploading file (this may take a while for large files)..."
+        echo "  Uploading file (overwrite if exists, may take a while)..."
         
         if aws s3 cp "$PMTILES_FILE" "$S3_DEST" \
             --endpoint-url "$S3_HOST" \
@@ -620,7 +636,15 @@ if [ -f "$PMTILES_FILE" ]; then
             echo "  Configuring MinIO client..."
             mc alias set "$MC_ALIAS" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure
             
-            echo "  Uploading file..."
+            # Check if file exists
+            echo "  Checking if file exists in MinIO..."
+            if mc stat "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure >/dev/null 2>&1; then
+                echo "  ⚠ File already exists - will be replaced"
+            else
+                echo "  ✓ New file - will be uploaded"
+            fi
+            
+            echo "  Uploading file (overwrite if exists)..."
             if mc cp "$PMTILES_FILE" "$MC_ALIAS/$S3_BUCKET/$S3_PATH/" --insecure; then
                 echo ""
                 echo "✓ Upload successful!"
