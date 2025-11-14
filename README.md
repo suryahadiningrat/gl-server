@@ -5,6 +5,7 @@
 ## 📋 Daftar Isi
 
 - [Overview](#overview)
+- [Flow](#flow)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
@@ -69,8 +70,6 @@ GL Server adalah sistem otomasi untuk:
 └─────────────────────────────────────────┘
 ```
 
-## ✨ Features
-
 ### 🚀 Automated Processing
 - **Incremental merge** - Hanya merge file baru, skip yang sudah diproses
 - **Auto-detection** - Scan otomatis file baru di direktori data
@@ -96,7 +95,13 @@ GL Server adalah sistem otomasi untuk:
 - **Zoom level separation** - Grid (0-14) + Drone (16-22)
 - **Format separation** - Vector dan raster di file terpisah
 
-## 🏗️ Architecture
+## Flow
+- IDPM Upload MBTiles
+- Trigger minio (created new file .mbtiles) -> hit endpoint IDPM API minio-webhook
+- minio-webhook.sh running /home/docker/tileserver-gl/scripts/generate-config.sh
+- Download .mbtiles from minio to /home/docker/tileserver-gl/data
+- Merge new .mbtiles from minio to glmap.minio
+- Update postgres drone row, to update latitude, longitude, zoom, and (xyz)
 
 ### File Structure
 
@@ -132,20 +137,6 @@ gl-server/
 | **Tile Format** | MBTiles, PMTiles | Tile packaging |
 | **Vector Tiles** | Tippecanoe | Grid optimization |
 | **Shell** | POSIX sh | Cross-platform scripts |
-
-### Data Flow
-
-```
-Upload Drone File → Scan → Merge → Generate Config → Restart Server
-                                          ↓
-                                    Convert PMTiles
-                                          ↓
-                                    Upload to S3
-                                          ↓
-                                    Update PostgreSQL
-```
-
-## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -489,11 +480,6 @@ For issues and questions:
 - [x] MinIO S3 upload
 - [x] Auto-installation tools
 - [x] Linux compatibility
-- [ ] PostgreSQL coordinate updates
-- [ ] Automated testing
-- [ ] CI/CD pipeline
-- [ ] Web-based monitoring dashboard
-- [ ] Multi-region S3 sync
 
 ---
 
