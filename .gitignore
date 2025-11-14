@@ -1,1 +1,97 @@
-/data
+# Tile files
+data/*.mbtiles
+data/*.pmtiles
+*.mbtiles
+*.pmtiles
+
+# Logs
+*.log
+.merged_files.log
+data/.merged_files.log
+
+# Configuration files with credentials
+.env
+.env.local
+config-local.json
+
+# Docker volumes
+docker-data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Conda
+.conda/
+*.conda
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Test files
+test-data/
+test-output/
+
+# MinIO data
+minio-data/
+
+# Database dumps
+*.sql
+*.dump
+
+# Archive files
+*.tar.gz
+*.zip
+*.rar
+
+# Keep grid layer
+!data/grid_layer.mbtiles
+
+# Keep example/small test files if needed
+# !data/example.mbtiles
