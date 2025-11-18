@@ -416,279 +416,279 @@ else
     echo "⚠ Docker not available - please restart container manually"
 fi
 
-# Step 5: Generate PMTiles from glmap.mbtiles
-echo ""
-echo "=== Step 5: Generating PMTiles ==="
+# # Step 5: Generate PMTiles from glmap.mbtiles
+# echo ""
+# echo "=== Step 5: Generating PMTiles ==="
 
-PMTILES_FILE="$DATA_DIR/glmap.pmtiles"
+# PMTILES_FILE="$DATA_DIR/glmap.pmtiles"
 
-if command -v pmtiles >/dev/null 2>&1; then
-    echo "Converting glmap.mbtiles to PMTiles format..."
+# if command -v pmtiles >/dev/null 2>&1; then
+#     echo "Converting glmap.mbtiles to PMTiles format..."
     
-    # Remove old pmtiles if exists
-    rm -f "$PMTILES_FILE"
+#     # Remove old pmtiles if exists
+#     rm -f "$PMTILES_FILE"
     
-    # Convert mbtiles to pmtiles
-    pmtiles convert "$GLMAP_FILE" "$PMTILES_FILE"
+#     # Convert mbtiles to pmtiles
+#     pmtiles convert "$GLMAP_FILE" "$PMTILES_FILE"
     
-    if [ -f "$PMTILES_FILE" ]; then
-        pmtiles_size=$(du -h "$PMTILES_FILE" | cut -f1)
-        echo "✓ PMTiles generated: $PMTILES_FILE ($pmtiles_size)"
-    else
-        echo "✗ Failed to generate PMTiles"
-    fi
-else
-    echo "⚠ pmtiles command not found. Installing..."
+#     if [ -f "$PMTILES_FILE" ]; then
+#         pmtiles_size=$(du -h "$PMTILES_FILE" | cut -f1)
+#         echo "✓ PMTiles generated: $PMTILES_FILE ($pmtiles_size)"
+#     else
+#         echo "✗ Failed to generate PMTiles"
+#     fi
+# else
+#     echo "⚠ pmtiles command not found. Installing..."
     
-    # Detect OS and architecture
-    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    ARCH=$(uname -m)
+#     # Detect OS and architecture
+#     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+#     ARCH=$(uname -m)
     
-    case "$ARCH" in
-        x86_64) ARCH="x86_64" ;;
-        aarch64|arm64) ARCH="arm64" ;;
-        *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-    esac
+#     case "$ARCH" in
+#         x86_64) ARCH="x86_64" ;;
+#         aarch64|arm64) ARCH="arm64" ;;
+#         *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+#     esac
     
-    # Download and install pmtiles
-    PMTILES_VERSION="1.28.2"
-    PMTILES_URL="https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/go-pmtiles_${PMTILES_VERSION}_${OS}_${ARCH}.tar.gz"
-    PMTILES_INSTALL_DIR="/usr/local/bin"
+#     # Download and install pmtiles
+#     PMTILES_VERSION="1.28.2"
+#     PMTILES_URL="https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/go-pmtiles_${PMTILES_VERSION}_${OS}_${ARCH}.tar.gz"
+#     PMTILES_INSTALL_DIR="/usr/local/bin"
     
-    echo "  Downloading pmtiles v${PMTILES_VERSION} for ${OS}/${ARCH}..."
+#     echo "  Downloading pmtiles v${PMTILES_VERSION} for ${OS}/${ARCH}..."
     
-    if command -v curl >/dev/null 2>&1; then
-        curl -L "$PMTILES_URL" -o /tmp/pmtiles.tar.gz
-    elif command -v wget >/dev/null 2>&1; then
-        wget "$PMTILES_URL" -O /tmp/pmtiles.tar.gz
-    else
-        echo "✗ Neither curl nor wget found. Install with:"
-        echo "  apt-get install curl"
-        exit 1
-    fi
+#     if command -v curl >/dev/null 2>&1; then
+#         curl -L "$PMTILES_URL" -o /tmp/pmtiles.tar.gz
+#     elif command -v wget >/dev/null 2>&1; then
+#         wget "$PMTILES_URL" -O /tmp/pmtiles.tar.gz
+#     else
+#         echo "✗ Neither curl nor wget found. Install with:"
+#         echo "  apt-get install curl"
+#         exit 1
+#     fi
     
-    # Extract and install
-    echo "  Installing pmtiles to $PMTILES_INSTALL_DIR..."
-    tar -xzf /tmp/pmtiles.tar.gz -C /tmp/
+#     # Extract and install
+#     echo "  Installing pmtiles to $PMTILES_INSTALL_DIR..."
+#     tar -xzf /tmp/pmtiles.tar.gz -C /tmp/
     
-    if [ -w "$PMTILES_INSTALL_DIR" ]; then
-        mv /tmp/pmtiles "$PMTILES_INSTALL_DIR/"
-        chmod +x "$PMTILES_INSTALL_DIR/pmtiles"
-    else
-        echo "  Need sudo for installation..."
-        sudo mv /tmp/pmtiles "$PMTILES_INSTALL_DIR/"
-        sudo chmod +x "$PMTILES_INSTALL_DIR/pmtiles"
-    fi
+#     if [ -w "$PMTILES_INSTALL_DIR" ]; then
+#         mv /tmp/pmtiles "$PMTILES_INSTALL_DIR/"
+#         chmod +x "$PMTILES_INSTALL_DIR/pmtiles"
+#     else
+#         echo "  Need sudo for installation..."
+#         sudo mv /tmp/pmtiles "$PMTILES_INSTALL_DIR/"
+#         sudo chmod +x "$PMTILES_INSTALL_DIR/pmtiles"
+#     fi
     
-    rm -f /tmp/pmtiles.tar.gz
+#     rm -f /tmp/pmtiles.tar.gz
     
-    # Verify installation
-    if command -v pmtiles >/dev/null 2>&1; then
-        echo "  ✓ pmtiles installed successfully"
+#     # Verify installation
+#     if command -v pmtiles >/dev/null 2>&1; then
+#         echo "  ✓ pmtiles installed successfully"
         
-        # Now convert
-        echo "  Converting glmap.mbtiles to PMTiles..."
-        pmtiles convert "$GLMAP_FILE" "$PMTILES_FILE"
+#         # Now convert
+#         echo "  Converting glmap.mbtiles to PMTiles..."
+#         pmtiles convert "$GLMAP_FILE" "$PMTILES_FILE"
         
-        if [ -f "$PMTILES_FILE" ]; then
-            pmtiles_size=$(du -h "$PMTILES_FILE" | cut -f1)
-            echo "  ✓ PMTiles generated: $PMTILES_FILE ($pmtiles_size)"
-        fi
-    else
-        echo "✗ Failed to install pmtiles"
-        echo "  Manual installation:"
-        echo "  1. Download from: https://github.com/protomaps/go-pmtiles/releases"
-        echo "  2. Extract and move to /usr/local/bin/"
-    fi
-fi
+#         if [ -f "$PMTILES_FILE" ]; then
+#             pmtiles_size=$(du -h "$PMTILES_FILE" | cut -f1)
+#             echo "  ✓ PMTiles generated: $PMTILES_FILE ($pmtiles_size)"
+#         fi
+#     else
+#         echo "✗ Failed to install pmtiles"
+#         echo "  Manual installation:"
+#         echo "  1. Download from: https://github.com/protomaps/go-pmtiles/releases"
+#         echo "  2. Extract and move to /usr/local/bin/"
+#     fi
+# fi
 
-# Step 6: Upload PMTiles to MinIO S3
-if [ -f "$PMTILES_FILE" ]; then
-    echo ""
-    echo "=== Step 6: Uploading to MinIO S3 ==="
+# # Step 6: Upload PMTiles to MinIO S3
+# if [ -f "$PMTILES_FILE" ]; then
+#     echo ""
+#     echo "=== Step 6: Uploading to MinIO S3 ==="
     
-    # S3 Configuration
-    S3_HOST="${S3_HOST:-http://52.76.171.132:9005}"
-    S3_BUCKET="${S3_BUCKET:-idpm}"
-    S3_PATH="${S3_PATH:-layers}"
-    S3_ACCESS_KEY="${S3_ACCESS_KEY:-eY7VQA55gjPQu1CGv540}"
-    S3_SECRET_KEY="${S3_SECRET_KEY:-u6feeKC1s8ttqU1PLLILrfyqdv79UOvBkzpWhIIn}"
-    S3_HOSTNAME="${S3_HOSTNAME:-https://api-minio.ptnaghayasha.com}"
+#     # S3 Configuration
+#     S3_HOST="${S3_HOST:-http://52.76.171.132:9005}"
+#     S3_BUCKET="${S3_BUCKET:-idpm}"
+#     S3_PATH="${S3_PATH:-layers}"
+#     S3_ACCESS_KEY="${S3_ACCESS_KEY:-eY7VQA55gjPQu1CGv540}"
+#     S3_SECRET_KEY="${S3_SECRET_KEY:-u6feeKC1s8ttqU1PLLILrfyqdv79UOvBkzpWhIIn}"
+#     S3_HOSTNAME="${S3_HOSTNAME:-https://api-minio.ptnaghayasha.com}"
     
-    PMTILES_FILENAME=$(basename "$PMTILES_FILE")
-    S3_DEST="s3://$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
+#     PMTILES_FILENAME=$(basename "$PMTILES_FILE")
+#     S3_DEST="s3://$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
     
-    echo "Uploading to MinIO..."
-    echo "  Source: $PMTILES_FILE"
-    echo "  Destination: $S3_DEST"
-    echo "  Host: $S3_HOST"
-    echo ""
+#     echo "Uploading to MinIO..."
+#     echo "  Source: $PMTILES_FILE"
+#     echo "  Destination: $S3_DEST"
+#     echo "  Host: $S3_HOST"
+#     echo ""
     
-    # Prefer mc (MinIO Client) over aws cli
-    if command -v mc >/dev/null 2>&1; then
-        # Configure mc alias
-        MC_ALIAS="glmap_minio"
+#     # Prefer mc (MinIO Client) over aws cli
+#     if command -v mc >/dev/null 2>&1; then
+#         # Configure mc alias
+#         MC_ALIAS="glmap_minio"
         
-        echo "Configuring MinIO client..."
-        mc alias set "$MC_ALIAS" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure >/dev/null 2>&1
+#         echo "Configuring MinIO client..."
+#         mc alias set "$MC_ALIAS" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure >/dev/null 2>&1
         
-        # Check if file exists
-        echo "Checking if file exists in MinIO..."
-        if mc stat "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure >/dev/null 2>&1; then
-            echo "⚠ File already exists - will be replaced"
-        else
-            echo "✓ New file - will be uploaded"
-        fi
+#         # Check if file exists
+#         echo "Checking if file exists in MinIO..."
+#         if mc stat "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure >/dev/null 2>&1; then
+#             echo "⚠ File already exists - will be replaced"
+#         else
+#             echo "✓ New file - will be uploaded"
+#         fi
         
-        # Upload with progress
-        echo "Uploading file (this may take a while)..."
-        if mc cp "$PMTILES_FILE" "$MC_ALIAS/$S3_BUCKET/$S3_PATH/" --insecure; then
-            echo ""
-            echo "✓ Upload successful!"
-            echo ""
-            echo "📍 PMTiles URLs:"
-            echo "   Internal: $S3_HOST/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
-            echo "   Public:   $S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
-            echo ""
+#         # Upload with progress
+#         echo "Uploading file (this may take a while)..."
+#         if mc cp "$PMTILES_FILE" "$MC_ALIAS/$S3_BUCKET/$S3_PATH/" --insecure; then
+#             echo ""
+#             echo "✓ Upload successful!"
+#             echo ""
+#             echo "📍 PMTiles URLs:"
+#             echo "   Internal: $S3_HOST/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
+#             echo "   Public:   $S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
+#             echo ""
             
-            # Set public policy
-            echo "Setting public read access..."
-            mc anonymous set download "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure 2>/dev/null && \
-                echo "✓ File set to public" || \
-                echo "  (Public policy not set - file may still be accessible via presigned URL)"
-        else
-            echo "✗ Upload failed"
-        fi
+#             # Set public policy
+#             echo "Setting public read access..."
+#             mc anonymous set download "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure 2>/dev/null && \
+#                 echo "✓ File set to public" || \
+#                 echo "  (Public policy not set - file may still be accessible via presigned URL)"
+#         else
+#             echo "✗ Upload failed"
+#         fi
     
-    # Fallback to AWS CLI
-    elif command -v aws >/dev/null 2>&1; then
-        # Configure AWS CLI for MinIO
-        export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY"
-        export AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY"
+#     # Fallback to AWS CLI
+#     elif command -v aws >/dev/null 2>&1; then
+#         # Configure AWS CLI for MinIO
+#         export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY"
+#         export AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY"
         
-        # Check if file exists
-        echo "Checking if file exists in MinIO..."
-        if aws s3 ls "$S3_DEST" --endpoint-url "$S3_HOST" --no-verify-ssl >/dev/null 2>&1; then
-            echo "⚠ File already exists - will be replaced"
-        else
-            echo "✓ New file - will be uploaded"
-        fi
+#         # Check if file exists
+#         echo "Checking if file exists in MinIO..."
+#         if aws s3 ls "$S3_DEST" --endpoint-url "$S3_HOST" --no-verify-ssl >/dev/null 2>&1; then
+#             echo "⚠ File already exists - will be replaced"
+#         else
+#             echo "✓ New file - will be uploaded"
+#         fi
         
-        # Upload with simple method (not multipart for compatibility)
-        echo "  Uploading file (overwrite if exists, may take a while)..."
+#         # Upload with simple method (not multipart for compatibility)
+#         echo "  Uploading file (overwrite if exists, may take a while)..."
         
-        if aws s3 cp "$PMTILES_FILE" "$S3_DEST" \
-            --endpoint-url "$S3_HOST" \
-            --no-verify-ssl; then
+#         if aws s3 cp "$PMTILES_FILE" "$S3_DEST" \
+#             --endpoint-url "$S3_HOST" \
+#             --no-verify-ssl; then
             
-            echo "✓ Upload successful!"
-            echo ""
-            echo "📍 PMTiles URL:"
-            echo "   $S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
-            echo ""
+#             echo "✓ Upload successful!"
+#             echo ""
+#             echo "📍 PMTiles URL:"
+#             echo "   $S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
+#             echo ""
             
-            # Make public (optional)
-            echo "Setting public read access..."
-            aws s3api put-object-acl \
-                --bucket "$S3_BUCKET" \
-                --key "$S3_PATH/$PMTILES_FILENAME" \
-                --acl public-read \
-                --endpoint-url "$S3_HOST" \
-                --no-verify-ssl 2>/dev/null && echo "✓ File set to public" || echo "  (Public ACL not set - may require permissions)"
-        else
-            echo "✗ Upload failed"
-            echo ""
-            echo "Alternative: Manual upload using mc (MinIO Client)"
-            echo "  Install mc first, then run:"
-            echo "  mc alias set myminio $S3_HOST $S3_ACCESS_KEY $S3_SECRET_KEY"
-            echo "  mc cp $PMTILES_FILE myminio/$S3_BUCKET/$S3_PATH/"
-        fi
+#             # Make public (optional)
+#             echo "Setting public read access..."
+#             aws s3api put-object-acl \
+#                 --bucket "$S3_BUCKET" \
+#                 --key "$S3_PATH/$PMTILES_FILENAME" \
+#                 --acl public-read \
+#                 --endpoint-url "$S3_HOST" \
+#                 --no-verify-ssl 2>/dev/null && echo "✓ File set to public" || echo "  (Public ACL not set - may require permissions)"
+#         else
+#             echo "✗ Upload failed"
+#             echo ""
+#             echo "Alternative: Manual upload using mc (MinIO Client)"
+#             echo "  Install mc first, then run:"
+#             echo "  mc alias set myminio $S3_HOST $S3_ACCESS_KEY $S3_SECRET_KEY"
+#             echo "  mc cp $PMTILES_FILE myminio/$S3_BUCKET/$S3_PATH/"
+#         fi
         
-        # Cleanup environment
-        unset AWS_ACCESS_KEY_ID
-        unset AWS_SECRET_ACCESS_KEY
+#         # Cleanup environment
+#         unset AWS_ACCESS_KEY_ID
+#         unset AWS_SECRET_ACCESS_KEY
     
-    # No client installed - install mc
-    else
-        echo "⚠ No S3 client found (mc or awscli). Installing mc..."
+#     # No client installed - install mc
+#     else
+#         echo "⚠ No S3 client found (mc or awscli). Installing mc..."
         
-        # Detect OS and architecture
-        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-        ARCH=$(uname -m)
+#         # Detect OS and architecture
+#         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+#         ARCH=$(uname -m)
         
-        case "$ARCH" in
-            x86_64) ARCH="amd64" ;;
-            aarch64|arm64) ARCH="arm64" ;;
-            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-        esac
+#         case "$ARCH" in
+#             x86_64) ARCH="amd64" ;;
+#             aarch64|arm64) ARCH="arm64" ;;
+#             *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+#         esac
         
-        # Download and install mc
-        MC_URL="https://dl.min.io/client/mc/release/${OS}-${ARCH}/mc"
-        MC_INSTALL_DIR="/usr/local/bin"
+#         # Download and install mc
+#         MC_URL="https://dl.min.io/client/mc/release/${OS}-${ARCH}/mc"
+#         MC_INSTALL_DIR="/usr/local/bin"
         
-        echo "  Downloading MinIO Client for ${OS}/${ARCH}..."
+#         echo "  Downloading MinIO Client for ${OS}/${ARCH}..."
         
-        if command -v curl >/dev/null 2>&1; then
-            curl -L "$MC_URL" -o /tmp/mc
-        elif command -v wget >/dev/null 2>&1; then
-            wget "$MC_URL" -O /tmp/mc
-        else
-            echo "✗ Neither curl nor wget found. Install with:"
-            echo "  apt-get install curl"
-            exit 1
-        fi
+#         if command -v curl >/dev/null 2>&1; then
+#             curl -L "$MC_URL" -o /tmp/mc
+#         elif command -v wget >/dev/null 2>&1; then
+#             wget "$MC_URL" -O /tmp/mc
+#         else
+#             echo "✗ Neither curl nor wget found. Install with:"
+#             echo "  apt-get install curl"
+#             exit 1
+#         fi
         
-        # Install mc
-        echo "  Installing mc to $MC_INSTALL_DIR..."
-        chmod +x /tmp/mc
+#         # Install mc
+#         echo "  Installing mc to $MC_INSTALL_DIR..."
+#         chmod +x /tmp/mc
         
-        if [ -w "$MC_INSTALL_DIR" ]; then
-            mv /tmp/mc "$MC_INSTALL_DIR/"
-        else
-            echo "  Need sudo for installation..."
-            sudo mv /tmp/mc "$MC_INSTALL_DIR/"
-        fi
+#         if [ -w "$MC_INSTALL_DIR" ]; then
+#             mv /tmp/mc "$MC_INSTALL_DIR/"
+#         else
+#             echo "  Need sudo for installation..."
+#             sudo mv /tmp/mc "$MC_INSTALL_DIR/"
+#         fi
         
-        # Verify installation
-        if command -v mc >/dev/null 2>&1; then
-            echo "  ✓ mc installed successfully"
+#         # Verify installation
+#         if command -v mc >/dev/null 2>&1; then
+#             echo "  ✓ mc installed successfully"
             
-            # Configure and upload
-            MC_ALIAS="glmap_minio"
-            echo "  Configuring MinIO client..."
-            mc alias set "$MC_ALIAS" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure
+#             # Configure and upload
+#             MC_ALIAS="glmap_minio"
+#             echo "  Configuring MinIO client..."
+#             mc alias set "$MC_ALIAS" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure
             
-            # Check if file exists
-            echo "  Checking if file exists in MinIO..."
-            if mc stat "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure >/dev/null 2>&1; then
-                echo "  ⚠ File already exists - will be replaced"
-            else
-                echo "  ✓ New file - will be uploaded"
-            fi
+#             # Check if file exists
+#             echo "  Checking if file exists in MinIO..."
+#             if mc stat "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure >/dev/null 2>&1; then
+#                 echo "  ⚠ File already exists - will be replaced"
+#             else
+#                 echo "  ✓ New file - will be uploaded"
+#             fi
             
-            echo "  Uploading file (overwrite if exists)..."
-            if mc cp "$PMTILES_FILE" "$MC_ALIAS/$S3_BUCKET/$S3_PATH/" --insecure; then
-                echo ""
-                echo "✓ Upload successful!"
-                echo ""
-                echo "📍 PMTiles URLs:"
-                echo "   Internal: $S3_HOST/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
-                echo "   Public:   $S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
+#             echo "  Uploading file (overwrite if exists)..."
+#             if mc cp "$PMTILES_FILE" "$MC_ALIAS/$S3_BUCKET/$S3_PATH/" --insecure; then
+#                 echo ""
+#                 echo "✓ Upload successful!"
+#                 echo ""
+#                 echo "📍 PMTiles URLs:"
+#                 echo "   Internal: $S3_HOST/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
+#                 echo "   Public:   $S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME"
                 
-                # Set public policy
-                mc anonymous set download "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure 2>/dev/null
-            else
-                echo "✗ Upload failed"
-            fi
-        else
-            echo "✗ Failed to install mc"
-            echo "  Manual installation:"
-            echo "  wget https://dl.min.io/client/mc/release/linux-amd64/mc"
-            echo "  chmod +x mc"
-            echo "  sudo mv mc /usr/local/bin/"
-        fi
-    fi
-fi
+#                 # Set public policy
+#                 mc anonymous set download "$MC_ALIAS/$S3_BUCKET/$S3_PATH/$PMTILES_FILENAME" --insecure 2>/dev/null
+#             else
+#                 echo "✗ Upload failed"
+#             fi
+#         else
+#             echo "✗ Failed to install mc"
+#             echo "  Manual installation:"
+#             echo "  wget https://dl.min.io/client/mc/release/linux-amd64/mc"
+#             echo "  chmod +x mc"
+#             echo "  sudo mv mc /usr/local/bin/"
+#         fi
+#     fi
+# fi
 
 # Step 7: Database update (optional)
 echo ""
