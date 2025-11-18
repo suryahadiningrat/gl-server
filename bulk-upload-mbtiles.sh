@@ -27,12 +27,16 @@ S3_ACCESS_KEY="${S3_ACCESS_KEY:-eY7VQA55gjPQu1CGv540}"
 S3_SECRET_KEY="${S3_SECRET_KEY:-u6feeKC1s8ttqU1PLLILrfyqdv79UOvBkzpWhIIn}"
 S3_HOSTNAME="${S3_HOSTNAME:-https://api-minio.ptnaghayasha.com}"
 
+# Webhook Configuration
+WEBHOOK_URL="${WEBHOOK_URL:-https://api.ptnaghayasha.com/api/minio-webhook}"
+WEBHOOK_ENABLED="${WEBHOOK_ENABLED:-true}"
+
 # PostgreSQL Configuration
-DB_HOST="${DB_HOST:-172.26.11.153}"
+DB_HOST="${DB_HOST:-52.74.112.75}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-postgres}"
-DB_USER="${DB_USER:-postgres}"
-DB_PASSWORD="${DB_PASSWORD:-}"
+DB_USER="${DB_USER:-pg}"
+DB_PASSWORD="${DB_PASSWORD:-~nagha2025yasha@~}"
 DB_TABLE="geoportal.pmn_drone_imagery"
 
 # Default values
@@ -47,11 +51,11 @@ DRY_RUN=false
 # =============================================================================
 
 log_info() {
-    echo "[INFO] $*"
+    echo "[INFO] $*" >&2
 }
 
 log_success() {
-    echo "[SUCCESS] ✓ $*"
+    echo "[SUCCESS] ✓ $*" >&2
 }
 
 log_error() {
@@ -59,7 +63,7 @@ log_error() {
 }
 
 log_warn() {
-    echo "[WARN] ⚠ $*"
+    echo "[WARN] ⚠ $*" >&2
 }
 
 # Generate unique ID
@@ -163,11 +167,114 @@ configure_minio() {
     fi
 }
 
+# Check if file exists in MinIO
+check_minio_exists() {
+    local alias_name="$1"
+    local filename="$2"
+    
+    if mc stat "$alias_name/$S3_BUCKET/$S3_PATH/$filename" --insecure >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Check if file exists in database by storage path
+check_database_exists() {
+    local storage_path="$1"
+    
+    local sql="SELECT id FROM $DB_TABLE WHERE storage_path = '$storage_path' LIMIT 1;"
+    
+    if [ -n "$DB_PASSWORD" ]; then
+        export PGPASSWORD="$DB_PASSWORD"
+    fi
+    
+    local result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "$sql" 2>&1)
+    local exit_code=$?
+    
+    unset PGPASSWORD
+    
+    if [ $exit_code -eq 0 ] && [ -n "$(echo "$result" | tr -d '[:space:]')" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Generate timestamp prefix for filename
+generate_timestamp_prefix() {
+    date +%s%3N
+}
+
+# Trigger webhook notification (simulates MinIO event)
+trigger_webhook() {
+    local filename="$1"
+    
+    if [ "$WEBHOOK_ENABLED" != "true" ]; then
+        return 0
+    fi
+    
+    if [ "$DRY_RUN" = true ]; then
+        log_info "DRY RUN: Would trigger webhook for $filename"
+        return 0
+    fi
+    
+    log_info "Triggering webhook for: $filename"
+    
+    # Create MinIO-compatible webhook payload
+    local payload=$(cat <<EOF
+{
+  "EventName": "s3:ObjectCreated:Put",
+  "Key": "$S3_BUCKET/$S3_PATH/$filename",
+  "Records": [{
+    "eventVersion": "2.0",
+    "eventSource": "minio:s3",
+    "eventName": "s3:ObjectCreated:Put",
+    "s3": {
+      "configurationId": "Config",
+      "bucket": {
+        "name": "$S3_BUCKET",
+        "arn": "arn:aws:s3:::$S3_BUCKET"
+      },
+      "object": {
+        "key": "$S3_PATH/$filename",
+        "size": 0,
+        "contentType": "application/octet-stream"
+      }
+    }
+  }]
+}
+EOF
+)
+    
+    # Send webhook request
+    local response=$(curl -X POST "$WEBHOOK_URL" \
+        -H "Content-Type: application/json" \
+        -H "User-Agent: MinIO" \
+        -d "$payload" \
+        --silent \
+        --write-out "\n%{http_code}" \
+        --max-time 10 \
+        2>&1)
+    
+    local http_code=$(echo "$response" | tail -n1)
+    local body=$(echo "$response" | sed '$d')
+    
+    if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+        log_success "Webhook triggered successfully (HTTP $http_code)"
+        return 0
+    else
+        log_warn "Webhook returned HTTP $http_code"
+        log_warn "Response: $body"
+        return 0  # Don't fail the upload if webhook fails
+    fi
+}
+
 # Upload file to MinIO
 upload_to_minio() {
     local file="$1"
     local alias_name="$2"
-    local filename=$(basename "$file")
+    local filename="$3"  # filename with timestamp prefix
     
     log_info "Uploading: $filename ($(get_file_size_label "$file"))"
     
@@ -177,19 +284,19 @@ upload_to_minio() {
         return 0
     fi
     
-    # Check if file already exists
-    if mc stat "$alias_name/$S3_BUCKET/$S3_PATH/$filename" --insecure >/dev/null 2>&1; then
-        log_warn "File already exists in MinIO, will be replaced: $filename"
-    fi
+    # Upload file with clean output capture
+    local upload_output=$(mc cp "$file" "$alias_name/$S3_BUCKET/$S3_PATH/$filename" --insecure 2>&1)
+    local upload_exit=$?
     
-    # Upload file
-    if mc cp "$file" "$alias_name/$S3_BUCKET/$S3_PATH/" --insecure 2>&1 | grep -v "█"; then
+    if [ $upload_exit -eq 0 ]; then
+        # Construct the final URL (MinIO doesn't return it directly)
         local file_url="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
         log_success "Uploaded: $filename"
         echo "$file_url"
         return 0
     else
         log_error "Failed to upload: $filename"
+        log_error "Error output: $upload_output"
         return 1
     fi
 }
@@ -293,39 +400,81 @@ process_file() {
     local location="$5"
     local bpdas="$6"
     
-    local filename=$(basename "$file")
+    local original_filename=$(basename "$file")
     
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
-    log_info "Processing: $filename"
+    log_info "Processing: $original_filename"
     echo "═══════════════════════════════════════════════════════════════"
     
     # Validate file
     if ! is_valid_mbtiles "$file"; then
-        log_error "Skipping invalid file: $filename"
+        log_error "Skipping invalid file: $original_filename"
         return 1
+    fi
+    
+    # Generate timestamp prefix and new filename
+    local timestamp_prefix=$(generate_timestamp_prefix)
+    local filename="${timestamp_prefix}_${original_filename}"
+    
+    log_info "New filename with timestamp: $filename"
+    
+    # Check if file already exists in MinIO
+    if check_minio_exists "$alias_name" "$filename"; then
+        log_warn "File already exists in MinIO: $filename"
+        
+        # Construct storage path and check database
+        local existing_storage_path="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
+        if check_database_exists "$existing_storage_path"; then
+            log_warn "File also exists in database, skipping: $filename"
+            return 2  # Return 2 to indicate skipped
+        else
+            log_info "File exists in MinIO but not in database, will insert to database"
+        fi
     fi
     
     # Generate metadata
     local id=$(generate_id)
-    local title=$(generate_title "$filename")
+    local title=$(generate_title "$original_filename")
     local file_size_label=$(get_file_size_label "$file")
     
     log_info "ID: $id"
     log_info "Title: $title"
     log_info "Size: $file_size_label"
     
-    # Upload to MinIO
+    # Upload to MinIO only if it doesn't exist
     local storage_path
-    storage_path=$(upload_to_minio "$file" "$alias_name")
+    if check_minio_exists "$alias_name" "$filename"; then
+        storage_path="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
+        log_info "Using existing file in MinIO: $filename"
+    else
+        storage_path=$(upload_to_minio "$file" "$alias_name" "$filename")
+        
+        if [ $? -ne 0 ]; then
+            log_error "Upload failed, skipping database insert"
+            return 1
+        fi
+        
+        # Verify upload completed successfully
+        if ! check_minio_exists "$alias_name" "$filename"; then
+            log_error "Upload verification failed: file not found in MinIO after upload"
+            return 1
+        fi
+        log_success "Upload verified: $filename"
+        
+        # Trigger webhook after successful upload
+        trigger_webhook "$filename"
+    fi
     
-    if [ $? -ne 0 ]; then
-        log_error "Upload failed, skipping database insert"
-        return 1
+    # Check again if database record exists with this storage path
+    if check_database_exists "$storage_path"; then
+        log_warn "Record already exists in database for: $storage_path"
+        log_info "Completed (already exists): $filename"
+        return 2  # Return 2 to indicate skipped
     fi
     
     # Insert to database
-    if insert_to_database "$id" "$title" "$filename" "$file_size_label" "$storage_path" "$status" "$operator" "$location" "$bpdas"; then
+    if insert_to_database "$id" "$title" "$original_filename" "$file_size_label" "$storage_path" "$status" "$operator" "$location" "$bpdas"; then
         log_success "Completed: $filename"
         return 0
     else
@@ -371,7 +520,7 @@ Environment Variables (optional):
   S3_SECRET_KEY          MinIO secret key
   S3_HOSTNAME            Public MinIO hostname (default: https://api-minio.ptnaghayasha.com)
   
-  DB_HOST                PostgreSQL host (default: 172.26.11.153)
+  DB_HOST                PostgreSQL host (default: 52.74.112.75)
   DB_PORT                PostgreSQL port (default: 5432)
   DB_NAME                PostgreSQL database (default: postgres)
   DB_USER                PostgreSQL user (default: postgres)
@@ -513,8 +662,13 @@ FAILED_COUNT=0
 SKIPPED_COUNT=0
 
 for file in $MBTILES_FILES; do
-    if process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" "$BPDAS"; then
+    process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" "$BPDAS"
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    elif [ $exit_code -eq 2 ]; then
+        SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
     else
         FAILED_COUNT=$((FAILED_COUNT + 1))
     fi
@@ -528,6 +682,7 @@ echo "════════════════════════�
 echo ""
 echo "Total files: $FILE_COUNT"
 echo "✓ Success: $SUCCESS_COUNT"
+echo "⊙ Skipped: $SKIPPED_COUNT"
 echo "✗ Failed: $FAILED_COUNT"
 echo ""
 
@@ -544,5 +699,6 @@ fi
 
 log_success "All files processed successfully!"
 echo ""
-log_info "Note: MinIO webhook will automatically trigger generate-config script"
+log_info "Webhook notifications sent to: $WEBHOOK_URL"
+log_info "Config will be automatically updated by the webhook handler"
 echo ""
