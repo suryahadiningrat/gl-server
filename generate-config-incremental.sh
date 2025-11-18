@@ -7,22 +7,42 @@
 
 set -e
 
+# Logging functions
+log_info() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] $*" >&2
+}
+
+log_error() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $*" >&2
+}
+
+log_success() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [SUCCESS] $*" >&2
+}
+
 # Force rebuild option (set to true to merge all files from scratch)
 FORCE_REBUILD="${FORCE_REBUILD:-false}"
 
+log_info "Script started: generate-config-incremental.sh"
+log_info "Working directory: $(pwd)"
+log_info "User: $(whoami)"
+log_info "FORCE_REBUILD: $FORCE_REBUILD"
+
 # Environment detection
 if [ -n "$DATA_DIR" ]; then
-    echo "Using provided DATA_DIR: $DATA_DIR"
+    log_info "Using provided DATA_DIR: $DATA_DIR"
     # Detect base directory
     BASE_DIR=$(dirname "$DATA_DIR")
 elif [ -d "/app/data/tileserver" ]; then
     DATA_DIR="/app/data/tileserver"
     BASE_DIR="/app"
+    log_info "Detected Docker environment: /app/data/tileserver"
 elif [ -d "/app/data" ]; then
     DATA_DIR="/app/data"
     BASE_DIR="/app"
+    log_info "Detected Docker environment: /app/data"
 else
-    echo "Error: Data directory not found"
+    log_error "Data directory not found"
     exit 1
 fi
 
@@ -39,6 +59,15 @@ TEMP_CONFIG="${TEMP_CONFIG:-/tmp/config_temp.json}"
 GRID_DIR="$DATA_DIR/GRID_DRONE_36_HA_EKSISTING_POTENSI"
 GRID_SHP="$GRID_DIR/GRID_36_HA_EKSISTING_POTENSI.shp"
 
+log_info "=== Configuration ==="
+log_info "Data directory: $DATA_DIR"
+log_info "Config file: $CONFIG_FILE"
+log_info "Style file: $STYLE_FILE"
+log_info "Glmap file: $GLMAP_FILE"
+log_info "Grid mbtiles: $GRID_MBTILES"
+log_info "Merge log: $MERGE_LOG"
+log_info "Grid directory: $GRID_DIR"
+
 echo "=== Enhanced Generate Config Script ==="
 echo "Data directory: $DATA_DIR"
 echo "Config file: $CONFIG_FILE"
@@ -48,6 +77,9 @@ echo ""
 # Create directories
 mkdir -p "$STYLE_DIR"
 mkdir -p "$DATA_DIR"
+
+log_info "Directories created/verified"
+log_info "Checking style file: $STYLE_FILE"
 
 # Create enhanced style with separate grid and glmap layers
 if [ ! -f "$STYLE_FILE" ] || [ "$FORCE_STYLE_UPDATE" = "true" ]; then
@@ -133,28 +165,37 @@ mark_as_merged() {
 }
 
 # Step 1: Merge Grid + Drone into Single glmap.mbtiles
+log_info "=== Step 1: Creating Combined glmap (Grid + Drone) ==="
 echo "=== Step 1: Creating Combined glmap (Grid + Drone) ==="
 
 # Check data directory
 if [ ! -d "$DATA_DIR" ]; then
+    log_error "Data directory does not exist: $DATA_DIR"
     echo "Error: Data directory does not exist"
     exit 1
 fi
 
+log_info "Data directory exists: $DATA_DIR"
+
 # Initialize merge log if not exists
 [ ! -f "$MERGE_LOG" ] && touch "$MERGE_LOG"
 
+log_info "Merge log initialized: $MERGE_LOG"
+
 # Force rebuild: remove old glmap and merge log
 if [ "$FORCE_REBUILD" = "true" ]; then
+    log_info "FORCE_REBUILD enabled - removing old files"
     echo "⚠ FORCE_REBUILD enabled - removing old glmap and merge log..."
     rm -f "$GLMAP_FILE"
     rm -f "$MERGE_LOG"
     touch "$MERGE_LOG"
     echo "✓ Old files removed, will merge all files from scratch"
+    log_success "Old files removed for rebuild"
 fi
 
 # Initialize glmap if not exists (should already exist from Step 1)
 if [ ! -f "$GLMAP_FILE" ]; then
+    log_info "Creating new glmap.mbtiles (DRONE ONLY - zoom 16-22)"
     echo "Creating new glmap.mbtiles (DRONE ONLY - zoom 16-22)..."
     sqlite3 "$GLMAP_FILE" "
         CREATE TABLE metadata (name text PRIMARY KEY, value text);
@@ -173,7 +214,9 @@ if [ ! -f "$GLMAP_FILE" ]; then
         INSERT INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,18],\"minzoom\":16,\"maxzoom\":22}');
     "
     echo "✓ New glmap.mbtiles initialized (DRONE ONLY - zoom 16-22)"
+    log_success "New glmap.mbtiles created"
 else
+    log_info "Existing glmap.mbtiles found: $GLMAP_FILE"
     echo "✓ Existing glmap.mbtiles found"
     # Check and fix metadata table structure
     has_primary=$(sqlite3 "$GLMAP_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='metadata';" 2>/dev/null | grep -i "PRIMARY KEY" || echo "")
@@ -224,10 +267,12 @@ else
 fi
 
 # Step 2: Merge DRONE imagery files ONLY (exclude grid_layer.mbtiles)
+log_info "=== Step 2: Merging Drone Imagery Files ==="
 echo ""
 echo "=== Step 2: Merging Drone Imagery Files ==="
 
 # Find new files to merge
+log_info "Scanning for new files to merge..."
 echo "Scanning for new files to merge..."
 NEW_FILES=""
 NEW_COUNT=0
@@ -264,10 +309,12 @@ for mbtiles_file in "$DATA_DIR"/*.mbtiles; do
     fi
 done
 
+log_info "Found: $NEW_COUNT new files, $SKIPPED_COUNT already merged"
 echo "Found: $NEW_COUNT new files, $SKIPPED_COUNT already merged"
 
 # Merge only new files
 if [ "$NEW_COUNT" -gt 0 ]; then
+    log_info "Merging $NEW_COUNT new files into glmap..."
     echo "Merging new files into glmap..."
     
     for mbtiles_file in $NEW_FILES; do
@@ -287,12 +334,15 @@ if [ "$NEW_COUNT" -gt 0 ]; then
     done
     
     total=$(sqlite3 "$GLMAP_FILE" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+    log_success "Incremental merge complete (Total tiles: $total)"
     echo "✓ Incremental merge complete (Total tiles: $total)"
 else
+    log_info "No new files to merge"
     echo "✓ No new files to merge"
 fi
 
 # Step 3: Generate config.json
+log_info "=== Step 3: Generating Config ==="
 echo ""
 echo "=== Step 3: Generating Config ==="
 
@@ -402,6 +452,7 @@ fi
 echo "..."
 
 # Step 4: Restart container (before PMTiles generation)
+log_info "=== Step 4: Restarting Tileserver Container ==="
 echo ""
 echo "=== Step 4: Restarting Tileserver Container ==="
 if command -v docker >/dev/null 2>&1; then
@@ -691,6 +742,7 @@ fi
 # fi
 
 # Step 7: Database update (optional)
+log_info "=== Step 7: Updating PostgreSQL Database ==="
 echo ""
 echo "=== Step 7: Updating PostgreSQL Database ==="
 
@@ -701,10 +753,12 @@ DBPASS="~nagha2025yasha@~"
 DBNAME="postgres"
 DBPORT="5432"
 
+log_info "Database: $DBUSER@$DBHOST:$DBPORT/$DBNAME"
 echo "Database: $DBUSER@$DBHOST:$DBPORT/$DBNAME"
 
 # Check if database update should be skipped
 if [ "$SKIP_DB_UPDATE" = "true" ]; then
+    log_info "Database update skipped (SKIP_DB_UPDATE=true)"
     echo "Database update skipped (SKIP_DB_UPDATE=true)"
 else
     # Check dependencies

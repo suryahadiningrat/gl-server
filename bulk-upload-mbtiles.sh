@@ -225,7 +225,7 @@ trigger_webhook() {
     local payload=$(cat <<EOF
 {
   "EventName": "s3:ObjectCreated:Put",
-  "Key": "$S3_BUCKET/$S3_PATH/$filename",
+  "Key": "$S3_PATH/$filename",
   "Records": [{
     "eventVersion": "2.0",
     "eventSource": "minio:s3",
@@ -247,6 +247,10 @@ trigger_webhook() {
 EOF
 )
     
+    # Show webhook payload
+    log_info "Webhook payload:"
+    echo "$payload" | sed 's/^/  /' >&2
+    
     # Send webhook request
     local response=$(curl -X POST "$WEBHOOK_URL" \
         -H "Content-Type: application/json" \
@@ -254,18 +258,20 @@ EOF
         -d "$payload" \
         --silent \
         --write-out "\n%{http_code}" \
-        --max-time 10 \
+        --max-time 120 \
         2>&1)
     
     local http_code=$(echo "$response" | tail -n1)
     local body=$(echo "$response" | sed '$d')
+    
+    log_info "Webhook response (HTTP $http_code):"
+    echo "$body" | sed 's/^/  /' >&2
     
     if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
         log_success "Webhook triggered successfully (HTTP $http_code)"
         return 0
     else
         log_warn "Webhook returned HTTP $http_code"
-        log_warn "Response: $body"
         return 0  # Don't fail the upload if webhook fails
     fi
 }
@@ -301,7 +307,50 @@ upload_to_minio() {
     fi
 }
 
-# Insert record to PostgreSQL
+# Extract coordinates from mbtiles file
+extract_coordinates() {
+    local mbtiles_file="$1"
+    
+    # Try to get bounds from metadata
+    local bounds=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='bounds';" 2>/dev/null || echo "")
+    
+    if [ -n "$bounds" ] && [ "$bounds" != "" ]; then
+        # Parse bounds: west,south,east,north
+        local west=$(echo "$bounds" | cut -d',' -f1)
+        local south=$(echo "$bounds" | cut -d',' -f2) 
+        local east=$(echo "$bounds" | cut -d',' -f3)
+        local north=$(echo "$bounds" | cut -d',' -f4)
+        
+        # Calculate center using bc or fallback to awk
+        if command -v bc >/dev/null 2>&1; then
+            local lat=$(echo "scale=6; ($south + $north) / 2" | bc 2>/dev/null || echo "-0.469")
+            local lon=$(echo "scale=6; ($west + $east) / 2" | bc 2>/dev/null || echo "117.172")
+        else
+            # Fallback using awk
+            local lat=$(awk "BEGIN {printf \"%.6f\", ($south + $north) / 2}" 2>/dev/null || echo "-0.469")
+            local lon=$(awk "BEGIN {printf \"%.6f\", ($west + $east) / 2}" 2>/dev/null || echo "117.172")
+        fi
+        
+        echo "$lat,$lon"
+        return 0
+    fi
+    
+    # Try center metadata
+    local center=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='center';" 2>/dev/null || echo "")
+    
+    if [ -n "$center" ] && [ "$center" != "" ]; then
+        # Center format: lon,lat,zoom
+        local lon=$(echo "$center" | cut -d',' -f1)
+        local lat=$(echo "$center" | cut -d',' -f2)
+        echo "$lat,$lon"
+        return 0
+    fi
+    
+    # Default coordinates (Indonesia region)
+    echo "-0.469,117.172"
+}
+
+# Insert record to PostgreSQL with coordinates
 insert_to_database() {
     local id="$1"
     local title="$2"
@@ -312,8 +361,16 @@ insert_to_database() {
     local operator="$7"
     local location="$8"
     local bpdas="$9"
+    local mbtiles_file="${10}"  # Full path to mbtiles file for coordinate extraction
     
     log_info "Inserting to database: $id"
+    
+    # Extract coordinates from mbtiles
+    local coords=$(extract_coordinates "$mbtiles_file")
+    local latitude=$(echo "$coords" | cut -d',' -f1)
+    local longitude=$(echo "$coords" | cut -d',' -f2)
+    
+    log_info "  Coordinates: lat=$latitude, lon=$longitude"
     
     if [ "$DRY_RUN" = true ]; then
         log_warn "DRY RUN: Would insert record to database"
@@ -323,10 +380,11 @@ insert_to_database() {
         log_info "  Size: $file_size_label"
         log_info "  Storage: $storage_path"
         log_info "  Status: $status"
+        log_info "  Coordinates: lat=$latitude, lon=$longitude"
         return 0
     fi
     
-    # Prepare SQL
+    # Prepare SQL with coordinates
     local sql="
         INSERT INTO $DB_TABLE (
             id,
@@ -344,7 +402,9 @@ insert_to_database() {
             status,
             notes,
             storage_path,
-            map_preview_url
+            map_preview_url,
+            latitude,
+            longitude
         )
         VALUES (
             '$id',
@@ -362,7 +422,9 @@ insert_to_database() {
             '$status'::pmn_drone_status,
             'Bulk upload otomatis dari berkas $filename',
             '$storage_path',
-            NULL
+            NULL,
+            $latitude,
+            $longitude
         )
         ON CONFLICT (id) DO NOTHING
         RETURNING id;
@@ -380,7 +442,7 @@ insert_to_database() {
     unset PGPASSWORD
     
     if [ $exit_code -eq 0 ] && echo "$result" | grep -q "$id"; then
-        log_success "Inserted to database: $id"
+        log_success "Inserted to database: $id (with coordinates)"
         return 0
     elif echo "$result" | grep -q "duplicate key"; then
         log_warn "Record already exists in database: $id"
@@ -419,13 +481,14 @@ process_file() {
     
     log_info "New filename with timestamp: $filename"
     
-    # Check if file already exists in MinIO
+    # Construct storage path (for database)
+    local storage_path="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
+    
+    # Check if file already exists in MinIO and database (skip duplicate)
     if check_minio_exists "$alias_name" "$filename"; then
         log_warn "File already exists in MinIO: $filename"
         
-        # Construct storage path and check database
-        local existing_storage_path="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
-        if check_database_exists "$existing_storage_path"; then
+        if check_database_exists "$storage_path"; then
             log_warn "File also exists in database, skipping: $filename"
             return 2  # Return 2 to indicate skipped
         else
@@ -442,45 +505,50 @@ process_file() {
     log_info "Title: $title"
     log_info "Size: $file_size_label"
     
-    # Upload to MinIO only if it doesn't exist
-    local storage_path
-    if check_minio_exists "$alias_name" "$filename"; then
-        storage_path="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
-        log_info "Using existing file in MinIO: $filename"
-    else
-        storage_path=$(upload_to_minio "$file" "$alias_name" "$filename")
-        
-        if [ $? -ne 0 ]; then
-            log_error "Upload failed, skipping database insert"
-            return 1
-        fi
-        
-        # Verify upload completed successfully
-        if ! check_minio_exists "$alias_name" "$filename"; then
-            log_error "Upload verification failed: file not found in MinIO after upload"
-            return 1
-        fi
-        log_success "Upload verified: $filename"
-        
-        # Trigger webhook after successful upload
-        trigger_webhook "$filename"
-    fi
-    
-    # Check again if database record exists with this storage path
+    # Check if database record already exists
     if check_database_exists "$storage_path"; then
         log_warn "Record already exists in database for: $storage_path"
         log_info "Completed (already exists): $filename"
         return 2  # Return 2 to indicate skipped
     fi
     
-    # Insert to database
-    if insert_to_database "$id" "$title" "$original_filename" "$file_size_label" "$storage_path" "$status" "$operator" "$location" "$bpdas"; then
-        log_success "Completed: $filename"
-        return 0
-    else
+    # Step 1: Insert to database FIRST (with coordinates from mbtiles)
+    log_info "Step 1/3: Inserting to database with coordinates..."
+    if ! insert_to_database "$id" "$title" "$original_filename" "$file_size_label" "$storage_path" "$status" "$operator" "$location" "$bpdas" "$file"; then
         log_error "Database insert failed for: $filename"
         return 1
     fi
+    
+    # Step 2: Upload to MinIO (only if not exists)
+    log_info "Step 2/3: Uploading to MinIO..."
+    if [ "$DRY_RUN" = true ]; then
+        log_warn "DRY RUN: Would check and upload to MinIO if needed"
+    elif check_minio_exists "$alias_name" "$filename"; then
+        log_info "File already exists in MinIO: $filename"
+    else
+        local upload_result=$(upload_to_minio "$file" "$alias_name" "$filename")
+        
+        if [ $? -ne 0 ]; then
+            log_error "Upload failed for: $filename"
+            log_warn "Database record exists but file not uploaded - manual cleanup may be needed"
+            return 1
+        fi
+        
+        # Verify upload completed successfully
+        if ! check_minio_exists "$alias_name" "$filename"; then
+            log_error "Upload verification failed: file not found in MinIO after upload"
+            log_warn "Database record exists but file verification failed - manual cleanup may be needed"
+            return 1
+        fi
+        log_success "Upload verified: $filename"
+    fi
+    
+    # Step 3: Trigger webhook after successful upload
+    log_info "Step 3/3: Triggering webhook..."
+    trigger_webhook "$filename"
+    
+    log_success "Completed: $filename"
+    return 0
 }
 
 # =============================================================================
