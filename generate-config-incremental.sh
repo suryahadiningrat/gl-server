@@ -691,17 +691,198 @@ if [ -f "$PMTILES_FILE" ]; then
 fi
 
 # Step 7: Database update (optional)
-if [ "$SKIP_DB_UPDATE" != "true" ]; then
-    echo ""
-    echo "=== Step 7: Database Update ==="
-    echo "Database update code here (using previous implementation)"
-    # TODO: Add database update code
-    # Connection: PostgreSQL at 172.26.11.153:5432
-    # Table: geoportal.pmn_drone_imagery
-    # Update coordinates from mbtiles metadata
+echo ""
+echo "=== Step 7: Updating PostgreSQL Database ==="
+
+# Database credentials
+DBHOST="172.26.11.153"
+DBUSER="pg"
+DBPASS="~nagha2025yasha@~"
+DBNAME="postgres"
+DBPORT="5432"
+
+echo "Database: $DBUSER@$DBHOST:$DBPORT/$DBNAME"
+
+# Check if database update should be skipped
+if [ "$SKIP_DB_UPDATE" = "true" ]; then
+    echo "Database update skipped (SKIP_DB_UPDATE=true)"
 else
-    echo ""
-    echo "⚠ Database update skipped (SKIP_DB_UPDATE=true)"
+    # Check dependencies
+    DB_UPDATE_AVAILABLE="true"
+    
+    # Install psycopg2 if needed
+    if ! python3 -c "import psycopg2" 2>/dev/null; then
+        echo "Installing psycopg2-binary..."
+        if pip3 install psycopg2-binary >/dev/null 2>&1; then
+            echo "✓ psycopg2-binary installed"
+        else
+            echo "✗ Could not install psycopg2, skipping database update"
+            DB_UPDATE_AVAILABLE="false"
+        fi
+    else
+        echo "✓ psycopg2 already available"
+    fi
+
+    # Install bc for calculations if needed  
+    if ! command -v bc >/dev/null 2>&1; then
+        echo "Installing bc for coordinate calculations..."
+        if apt-get update -qq && apt-get install -y bc >/dev/null 2>&1; then
+            echo "✓ bc installed"
+        else
+            echo "⚠ Could not install bc, using awk fallback"
+        fi
+    fi
+
+    # Function to extract coordinates from mbtiles
+    extract_coordinates() {
+        local mbtiles_file="$1"
+        
+        # Try to get bounds from metadata
+        local bounds=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='bounds';" 2>/dev/null || echo "")
+        
+        if [ -n "$bounds" ] && [ "$bounds" != "" ]; then
+            # Parse bounds: west,south,east,north
+            local west=$(echo "$bounds" | cut -d',' -f1)
+            local south=$(echo "$bounds" | cut -d',' -f2) 
+            local east=$(echo "$bounds" | cut -d',' -f3)
+            local north=$(echo "$bounds" | cut -d',' -f4)
+            
+            # Calculate center using bc or fallback to awk
+            if command -v bc >/dev/null 2>&1; then
+                local lat=$(echo "scale=6; ($south + $north) / 2" | bc 2>/dev/null || echo "-0.469")
+                local lon=$(echo "scale=6; ($west + $east) / 2" | bc 2>/dev/null || echo "117.172")
+            else
+                # Fallback using awk
+                local lat=$(awk "BEGIN {printf \"%.6f\", ($south + $north) / 2}")
+                local lon=$(awk "BEGIN {printf \"%.6f\", ($west + $east) / 2}")
+            fi
+            
+            echo "$lat,$lon"
+            return 0
+        fi
+        
+        # Try center metadata
+        local center=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='center';" 2>/dev/null || echo "")
+        
+        if [ -n "$center" ] && [ "$center" != "" ]; then
+            # Center format: lon,lat,zoom
+            local lon=$(echo "$center" | cut -d',' -f1)
+            local lat=$(echo "$center" | cut -d',' -f2)
+            echo "$lat,$lon"
+            return 0
+        fi
+        
+        # Default coordinates based on your sample data (Indonesia region)
+        echo "-0.469,117.172"
+    }
+
+    # Function to update database
+    update_database() {
+        local filename="$1"
+        local latitude="$2"
+        local longitude="$3"
+        
+        echo "Updating: $filename -> lat=$latitude, lon=$longitude"
+        
+        python3 << EOF
+import psycopg2
+import sys
+
+try:
+    conn = psycopg2.connect(
+        host='$DBHOST',
+        port=$DBPORT,
+        user='$DBUSER',
+        password='$DBPASS',
+        database='$DBNAME'
+    )
+    
+    cur = conn.cursor()
+    
+    # Check existing records
+    cur.execute("""
+        SELECT id, title, latitude, longitude, storage_path 
+        FROM geoportal.pmn_drone_imagery 
+        WHERE storage_path LIKE %s
+    """, ('%$filename.mbtiles%',))
+    
+    records = cur.fetchall()
+    
+    if records:
+        for record in records:
+            old_lat = record[2] or 'NULL'
+            old_lon = record[3] or 'NULL'
+            print(f"  Found: {record[0]} - {record[1]} (was: {old_lat}, {old_lon})")
+        
+        # Update coordinates
+        cur.execute("""
+            UPDATE geoportal.pmn_drone_imagery 
+            SET latitude = %s, longitude = %s, updated_at = NOW()
+            WHERE storage_path LIKE %s
+        """, ($latitude, $longitude, '%$filename.mbtiles%'))
+        
+        rows = cur.rowcount
+        conn.commit()
+        print(f"  ✓ Updated {rows} record(s)")
+        
+    else:
+        print(f"  ⚠ No matching records found for $filename")
+    
+    cur.close()
+    conn.close()
+
+except Exception as e:
+    print(f"  ✗ Error: {e}")
+    sys.exit(1)
+EOF
+    }
+
+    # Process all valid files that were processed
+    if [ "$DB_UPDATE_AVAILABLE" = "true" ]; then
+        echo ""
+        echo "Processing coordinates for database update..."
+        
+        # Process only newly merged files
+        if [ "$NEW_COUNT" -gt 0 ] && [ -n "$NEW_FILES" ]; then
+            echo "Updating coordinates for $NEW_COUNT newly merged files..."
+            
+            for mbtiles_file in $NEW_FILES; do
+                [ -f "$mbtiles_file" ] || continue
+                
+                filename=$(basename "$mbtiles_file" .mbtiles)
+                echo ""
+                echo "Processing: $filename"
+                
+                # Extract coordinates
+                coords=$(extract_coordinates "$mbtiles_file")
+                lat=$(echo "$coords" | cut -d',' -f1)
+                lon=$(echo "$coords" | cut -d',' -f2)
+                
+                echo "  Coordinates: lat=$lat, lon=$lon"
+                
+                # Update database
+                update_database "$filename" "$lat" "$lon"
+            done
+        else
+            echo "No new files to update in database"
+        fi
+        
+        # Also update glmap coordinates
+        if [ -f "$GLMAP_FILE" ]; then
+            echo ""
+            echo "Processing: glmap"
+            coords=$(extract_coordinates "$GLMAP_FILE")
+            lat=$(echo "$coords" | cut -d',' -f1)
+            lon=$(echo "$coords" | cut -d',' -f2)
+            echo "  Coordinates: lat=$lat, lon=$lon"
+            update_database "glmap" "$lat" "$lon"
+        fi
+        
+        echo ""
+        echo "✓ Database coordinate update completed"
+    else
+        echo "Database update skipped (dependencies not available)"
+    fi
 fi
 
 # Cleanup
