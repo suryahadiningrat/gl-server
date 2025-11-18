@@ -26,7 +26,8 @@ else
     exit 1
 fi
 
-CONFIG_FILE="${CONFIG_FILE:-$BASE_DIR/config.json}"
+# FIX: Config file should be in /app (Docker root), not in /app/data
+CONFIG_FILE="${CONFIG_FILE:-/app/config.json}"
 STYLE_DIR="${STYLE_DIR:-$BASE_DIR/styles/default}"
 STYLE_FILE="${STYLE_FILE:-$STYLE_DIR/style.json}"
 GLMAP_FILE="${GLMAP_FILE:-$DATA_DIR/glmap.mbtiles}"
@@ -329,6 +330,8 @@ echo "  Added: glmap (drone imagery only, zoom 16-22)"
 
 # Add individual files
 INDIVIDUAL_COUNT=0
+SKIPPED_INVALID=0
+echo "Scanning individual mbtiles files for config..."
 for mbtiles_file in "$DATA_DIR"/*.mbtiles; do
     [ -f "$mbtiles_file" ] || continue
     
@@ -336,12 +339,16 @@ for mbtiles_file in "$DATA_DIR"/*.mbtiles; do
     basename_only=$(basename "$mbtiles_file" .mbtiles)
     
     # Skip special files
-    [ "$filename" = "glmap.mbtiles" ] && continue
-    [ "$filename" = "grid_layer.mbtiles" ] && continue
+    if [ "$filename" = "glmap.mbtiles" ] || [ "$filename" = "grid_layer.mbtiles" ]; then
+        continue
+    fi
     
     # Skip trails
     case "$filename" in
-        *_trails*) continue ;;
+        *_trails*) 
+            echo "  Skipping (trails): $filename"
+            continue 
+            ;;
     esac
     
     # Validate
@@ -350,9 +357,18 @@ for mbtiles_file in "$DATA_DIR"/*.mbtiles; do
         echo "    \"$basename_only\": {" >> "$TEMP_CONFIG"
         echo "      \"mbtiles\": \"data/$filename\"" >> "$TEMP_CONFIG"
         echo "    }" >> "$TEMP_CONFIG"
+        echo "  Added: $filename"
         INDIVIDUAL_COUNT=$((INDIVIDUAL_COUNT + 1))
+    else
+        echo "  Skipping (invalid): $filename"
+        SKIPPED_INVALID=$((SKIPPED_INVALID + 1))
     fi
 done
+
+echo "✓ Added $INDIVIDUAL_COUNT individual files to config"
+if [ $SKIPPED_INVALID -gt 0 ]; then
+    echo "⚠ Skipped $SKIPPED_INVALID invalid files"
+fi
 
 # Close config
 echo "  }" >> "$TEMP_CONFIG"
