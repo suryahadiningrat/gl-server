@@ -871,7 +871,7 @@ try:
         # Update coordinates
         cur.execute("""
             UPDATE geoportal.pmn_drone_imagery 
-            SET latitude = %s, longitude = %s, updated_at = NOW()
+            SET latitude = %s, longitude = %s, status = 'Aktif', updated_at = NOW()
             WHERE storage_path LIKE %s
         """, ($latitude, $longitude, '%$filename.mbtiles%'))
         
