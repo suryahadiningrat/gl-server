@@ -41,13 +41,20 @@ elif [ -d "/app/data" ]; then
     DATA_DIR="/app/data"
     BASE_DIR="/app"
     log_info "Detected Docker environment: /app/data"
+elif [ -d "$(pwd)/data" ]; then
+    DATA_DIR="$(pwd)/data"
+    BASE_DIR="$(pwd)"
+    log_info "Detected Local environment: $(pwd)/data"
 else
-    log_error "Data directory not found"
-    exit 1
+    # Default to current directory data
+    mkdir -p "$(pwd)/data"$BASE_DIR
+    DATA_DIR="$(pwd)/data"
+    BASE_DIR="$(pwd)"
+    log_info "Creating and using Local environment: $(pwd)/data"
 fi
 
 # FIX: Config file should be in /app (Docker root), not in /app/data
-CONFIG_FILE="${CONFIG_FILE:-/app/config.json}"
+CONFIG_FILE="${CONFIG_FILE:-$(pwd)/config.json}"
 STYLE_DIR="${STYLE_DIR:-$BASE_DIR/styles/default}"
 STYLE_FILE="${STYLE_FILE:-$STYLE_DIR/style.json}"
 GLMAP_FILE="${GLMAP_FILE:-$DATA_DIR/glmap.mbtiles}"
@@ -373,10 +380,14 @@ if [ -f "$GRID_MBTILES" ]; then
 fi
 
 # Add glmap (DRONE ONLY - NO GRID)
-echo '    "glmap": {' >> "$TEMP_CONFIG"
-echo '      "mbtiles": "/data/glmap.mbtiles"' >> "$TEMP_CONFIG"
-echo '    }' >> "$TEMP_CONFIG"
-echo "  Added: glmap (drone imagery only, zoom 16-22)"
+if [ -f "$GLMAP_FILE" ]; then
+    echo '    "glmap": {' >> "$TEMP_CONFIG"
+    echo '      "mbtiles": "/data/glmap.mbtiles"' >> "$TEMP_CONFIG"
+    echo '    }' >> "$TEMP_CONFIG"
+    echo "  Added: glmap (drone imagery only, zoom 16-22)"
+else
+    echo "⚠ Glmap mbtiles not found: $GLMAP_FILE"
+fi
 
 # Add individual files
 INDIVIDUAL_COUNT=0
@@ -423,6 +434,31 @@ fi
 # Close config
 echo "  }" >> "$TEMP_CONFIG"
 echo "}" >> "$TEMP_CONFIG"
+
+# Check if any datasets were added (glmap, grid, or individual)
+if [ ! -f "$GLMAP_FILE" ] && [ ! -f "$GRID_MBTILES" ] && [ "$INDIVIDUAL_COUNT" -eq 0 ]; then
+    log_error "No mbtiles found! Tileserver requires at least one mbtiles file."
+    echo "Creating empty placeholder config to prevent crash loop..."
+    
+    # Create valid but empty config
+    cat > "$TEMP_CONFIG" << 'EOF'
+{
+  "options": {
+    "paths": {
+      "root": "",
+      "fonts": "/fonts",
+      "styles": "/styles"
+    }
+  },
+  "styles": {
+    "default": {
+      "style": "/styles/default/style.json"
+    }
+  },
+  "data": {}
+}
+EOF
+fi
 
 # Validate JSON
 if command -v python3 >/dev/null 2>&1; then
