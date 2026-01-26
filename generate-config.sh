@@ -45,13 +45,22 @@ elif [ -d "$(pwd)/data" ]; then
     DATA_DIR="$(pwd)/data"
     BASE_DIR="$(pwd)"
     log_info "Detected Local environment: $(pwd)/data"
+elif [ -d "$(dirname $(pwd))/data" ]; then
+    # Smart detection for when script is run from a subdir (e.g. scripts/)
+    DATA_DIR="$(dirname $(pwd))/data"
+    BASE_DIR="$(dirname $(pwd))"
+    log_info "Detected Parent environment (running from subdir): $DATA_DIR"
 else
     # Default to current directory data
-    mkdir -p "$(pwd)/data"$BASE_DIR
+    mkdir -p "$(pwd)/data"
     DATA_DIR="$(pwd)/data"
     BASE_DIR="$(pwd)"
     log_info "Creating and using Local environment: $(pwd)/data"
 fi
+
+# Set working directory to BASE_DIR to avoid relative path confusion
+cd "$BASE_DIR"
+log_info "Switched working directory to: $(pwd)"
 
 # FIX: Config file should be in /app (Docker root), not in /app/data
 CONFIG_FILE="${CONFIG_FILE:-$(pwd)/config.json}"
