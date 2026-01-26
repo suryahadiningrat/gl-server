@@ -271,7 +271,13 @@ fi
 log_info "=== Step 1.1: Checking Grid Layer ==="
 echo "=== Step 1.1: Checking Grid Layer ==="
 
-if [ ! -f "$GRID_MBTILES" ] || [ "$FORCE_REBUILD" = "true" ]; then
+if [ ! -f "$GRID_MBTILES" ] || [ "$FORCE_REBUILD" = "true" ] || ! is_valid_mbtiles "$GRID_MBTILES"; then
+    REASON="missing"
+    if [ -f "$GRID_MBTILES" ]; then
+        if [ "$FORCE_REBUILD" = "true" ]; then REASON="force_rebuild"; else REASON="invalid_or_empty"; fi
+    fi
+    echo "Regenerating grid_layer.mbtiles (Reason: $REASON)..."
+    
     if [ -f "$GRID_SHP" ]; then
         log_info "Generating grid_layer.mbtiles from Shapefile..."
         echo "Generating grid_layer.mbtiles from Shapefile..."
@@ -302,11 +308,12 @@ if [ ! -f "$GRID_MBTILES" ] || [ "$FORCE_REBUILD" = "true" ]; then
                     # Use -Z 0 -z 14 for vector tiles, drop densest to optimize
                     tippecanoe -o "$GRID_MBTILES" -Z 0 -z 14 --drop-densest-as-needed --force --layer=grid_layer "$GRID_GEOJSON"
                     
-                    if [ -f "$GRID_MBTILES" ]; then
+                    if [ -f "$GRID_MBTILES" ] && is_valid_mbtiles "$GRID_MBTILES"; then
                         echo "  ✓ grid_layer.mbtiles generated successfully"
                         rm -f "$GRID_GEOJSON"
                     else
-                        echo "  ✗ Failed to generate mbtiles"
+                        echo "  ✗ Failed to generate valid mbtiles (0 tiles?)"
+                        rm -f "$GRID_MBTILES"
                     fi
                 else
                     log_error "tippecanoe not found. Cannot convert GeoJSON."
@@ -328,7 +335,7 @@ else
 fi
 
 # Step 1.5: SKIP grid layer merging - keep separate!
-if [ -f "$GRID_MBTILES" ]; then
+if [ -f "$GRID_MBTILES" ] && is_valid_mbtiles "$GRID_MBTILES"; then
     echo ""
     echo "══════════════════════════════════════════════════════════"
     echo "🎯 GRID LAYER FOUND: grid_layer.mbtiles"
@@ -339,7 +346,7 @@ if [ -f "$GRID_MBTILES" ]; then
     echo "══════════════════════════════════════════════════════════"
     echo ""
 else
-    echo "⚠ Grid mbtiles not found: $GRID_MBTILES"
+    echo "⚠ Grid mbtiles missing or invalid: $GRID_MBTILES"
     echo "  Grid layer will not be available in config.json"
 fi
 
@@ -441,12 +448,14 @@ cat > "$TEMP_CONFIG" << 'EOF'
   "data": {
 EOF
 
-# Add grid_layer (if exists)
-if [ -f "$GRID_MBTILES" ]; then
+# Add grid_layer (if exists and valid)
+if [ -f "$GRID_MBTILES" ] && is_valid_mbtiles "$GRID_MBTILES"; then
     echo '    "grid_layer": {' >> "$TEMP_CONFIG"
     echo '      "mbtiles": "/data/grid_layer.mbtiles"' >> "$TEMP_CONFIG"
     echo '    },' >> "$TEMP_CONFIG"
     echo "  Added: grid_layer (vector tiles, zoom 0-14)"
+else
+    echo "⚠ Skipping grid_layer (missing or invalid/0-tiles)"
 fi
 
 # Add glmap (DRONE ONLY - NO GRID)
