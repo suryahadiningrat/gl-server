@@ -358,7 +358,7 @@ cat > "$TEMP_CONFIG" << 'EOF'
   },
   "styles": {
     "default": {
-      "style": "styles/default/style.json"
+      "style": "/styles/default/style.json"
     }
   },
   "data": {
@@ -367,14 +367,14 @@ EOF
 # Add grid_layer (if exists)
 if [ -f "$GRID_MBTILES" ]; then
     echo '    "grid_layer": {' >> "$TEMP_CONFIG"
-    echo '      "mbtiles": "data/grid_layer.mbtiles"' >> "$TEMP_CONFIG"
+    echo '      "mbtiles": "/data/grid_layer.mbtiles"' >> "$TEMP_CONFIG"
     echo '    },' >> "$TEMP_CONFIG"
     echo "  Added: grid_layer (vector tiles, zoom 0-14)"
 fi
 
 # Add glmap (DRONE ONLY - NO GRID)
 echo '    "glmap": {' >> "$TEMP_CONFIG"
-echo '      "mbtiles": "data/glmap.mbtiles"' >> "$TEMP_CONFIG"
+echo '      "mbtiles": "/data/glmap.mbtiles"' >> "$TEMP_CONFIG"
 echo '    }' >> "$TEMP_CONFIG"
 echo "  Added: glmap (drone imagery only, zoom 16-22)"
 
@@ -405,7 +405,7 @@ for mbtiles_file in "$DATA_DIR"/*.mbtiles; do
     if is_valid_mbtiles "$mbtiles_file"; then
         echo "," >> "$TEMP_CONFIG"
         echo "    \"$basename_only\": {" >> "$TEMP_CONFIG"
-        echo "      \"mbtiles\": \"data/$filename\"" >> "$TEMP_CONFIG"
+        echo "      \"mbtiles\": \"/data/$filename\"" >> "$TEMP_CONFIG"
         echo "    }" >> "$TEMP_CONFIG"
         echo "  Added: $filename"
         INDIVIDUAL_COUNT=$((INDIVIDUAL_COUNT + 1))
@@ -455,6 +455,19 @@ echo "..."
 log_info "=== Step 4: Managing Tileserver Container ==="
 echo ""
 echo "=== Step 4: Managing Tileserver Container ==="
+
+# Ensure permissions are correct for Docker volume
+log_info "Fixing permissions for data and config..."
+if [ -d "$DATA_DIR" ]; then
+    chmod -R 777 "$DATA_DIR"
+fi
+if [ -f "$CONFIG_FILE" ]; then
+    chmod 666 "$CONFIG_FILE"
+fi
+if [ -d "$STYLE_DIR" ]; then
+    chmod -R 777 "$STYLE_DIR"
+fi
+
 
 if command -v docker >/dev/null 2>&1; then
     # Check if container exists
