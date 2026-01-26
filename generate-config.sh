@@ -451,17 +451,50 @@ else
 fi
 echo "..."
 
-# Step 4: Restart container (before PMTiles generation)
-log_info "=== Step 4: Restarting Tileserver Container ==="
+# Step 4: Restart or Start container
+log_info "=== Step 4: Managing Tileserver Container ==="
 echo ""
-echo "=== Step 4: Restarting Tileserver Container ==="
+echo "=== Step 4: Managing Tileserver Container ==="
+
 if command -v docker >/dev/null 2>&1; then
-    echo "Restarting tileserver container..."
-    if docker restart tileserver-zurich; then
-        echo "✓ Container restarted successfully"
-        echo "✓ New tiles are now available via XYZ URLs"
+    # Check if container exists
+    if docker ps -a --format '{{.Names}}' | grep -q "^tileserver-zurich$"; then
+        echo "Container exists. Restarting..."
+        if docker restart tileserver-zurich; then
+            echo "✓ Container restarted successfully"
+            echo "✓ New tiles are now available via XYZ URLs"
+        else
+            echo "✗ Restart failed"
+        fi
     else
-        echo "✗ Restart failed"
+        echo "Container not found. Starting new container..."
+        
+        # Ensure fonts directory exists
+        if [ ! -d "fonts" ]; then
+            mkdir -p fonts
+            echo "✓ Created missing fonts directory"
+        fi
+        
+        # Determine paths
+        CURRENT_DIR=$(pwd)
+        
+        # Run container
+        if docker run -d \
+            --name tileserver-zurich \
+            --restart unless-stopped \
+            -p 8001:8080 \
+            -v "$CURRENT_DIR/data":/data \
+            -v "$CURRENT_DIR/config.json":/config.json \
+            -v "$CURRENT_DIR/styles":/styles \
+            -v "$CURRENT_DIR/fonts":/fonts \
+            maptiler/tileserver-gl:latest \
+            --config /config.json; then
+            
+            echo "✓ Container started successfully"
+            echo "✓ Tileserver is running at http://localhost:8001"
+        else
+            echo "✗ Failed to start container"
+        fi
     fi
 else
     echo "⚠ Docker not available - please restart container manually"

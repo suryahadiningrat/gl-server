@@ -115,7 +115,7 @@ docker pull maptiler/tileserver-gl:latest
 docker run -d \
   --name tileserver-zurich \
   --restart unless-stopped \
-  -p 8080:8080 \
+  -p 8001:8080 \
   -v /app/data:/data \
   -v /app/config.json:/config.json \
   -v /app/styles:/styles \

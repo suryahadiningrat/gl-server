@@ -58,8 +58,8 @@ GL Server adalah sistem otomasi untuk:
          ▼                      ▼
 ┌─────────────────────────────────────────┐
 │       Tileserver-GL Container           │
-│  http://server:8080/data/glmap/{z}/{x}/{y}.jpg   │
-│  http://server:8080/data/grid_layer/{z}/{x}/{y}.pbf │
+│  http://server:8001/data/glmap/{z}/{x}/{y}.jpg   │
+│  http://server:8001/data/grid_layer/{z}/{x}/{y}.pbf │
 └─────────────────────────────────────────┘
          │
          ▼
