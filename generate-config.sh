@@ -192,8 +192,9 @@ log_info "Merge log initialized: $MERGE_LOG"
 # Force rebuild: remove old glmap and merge log
 if [ "$FORCE_REBUILD" = "true" ]; then
     log_info "FORCE_REBUILD enabled - removing old files"
-    echo "⚠ FORCE_REBUILD enabled - removing old glmap and merge log..."
+    echo "⚠ FORCE_REBUILD enabled - removing old glmap, grid layer, and merge log..."
     rm -f "$GLMAP_FILE"
+    rm -f "$GRID_MBTILES"
     rm -f "$MERGE_LOG"
     touch "$MERGE_LOG"
     echo "✓ Old files removed, will merge all files from scratch"
@@ -255,6 +256,66 @@ else
         "
         echo "  ✓ Drone-only metadata added (zoom 16-22 coverage)"
     fi
+fi
+
+# Step 1.1: Generate Grid Layer from Shapefile (if needed)
+log_info "=== Step 1.1: Checking Grid Layer ==="
+echo "=== Step 1.1: Checking Grid Layer ==="
+
+if [ ! -f "$GRID_MBTILES" ] || [ "$FORCE_REBUILD" = "true" ]; then
+    if [ -f "$GRID_SHP" ]; then
+        log_info "Generating grid_layer.mbtiles from Shapefile..."
+        echo "Generating grid_layer.mbtiles from Shapefile..."
+        
+        # Convert SHP to GeoJSONSeq
+        GRID_GEOJSON="$DATA_DIR/grid.geojson.ld"
+        
+        if command -v ogr2ogr >/dev/null 2>&1; then
+            echo "  Converting Shapefile to GeoJSONSeq..."
+            
+            # Check for .prj file to decide on SRS
+            PRJ_FILE="${GRID_SHP%.*}.prj"
+            SRS_OPTS="-t_srs EPSG:4326"
+            
+            if [ ! -f "$PRJ_FILE" ]; then
+                echo "  ⚠ .prj file not found, assuming EPSG:4326 source..."
+                SRS_OPTS="-s_srs EPSG:4326 -t_srs EPSG:4326"
+            fi
+            
+            # Convert
+            ogr2ogr --config SHAPE_RESTORE_SHX YES -f GeoJSONSeq $SRS_OPTS "$GRID_GEOJSON" "$GRID_SHP"
+            
+            if [ -f "$GRID_GEOJSON" ]; then
+                echo "  ✓ GeoJSONSeq generated"
+                
+                if command -v tippecanoe >/dev/null 2>&1; then
+                    echo "  Converting GeoJSONSeq to MBTiles..."
+                    # Use -Z 0 -z 14 for vector tiles, drop densest to optimize
+                    tippecanoe -o "$GRID_MBTILES" -Z 0 -z 14 --drop-densest-as-needed --force --layer=grid_layer "$GRID_GEOJSON"
+                    
+                    if [ -f "$GRID_MBTILES" ]; then
+                        echo "  ✓ grid_layer.mbtiles generated successfully"
+                        rm -f "$GRID_GEOJSON"
+                    else
+                        echo "  ✗ Failed to generate mbtiles"
+                    fi
+                else
+                    log_error "tippecanoe not found. Cannot convert GeoJSON."
+                    echo "  ✗ tippecanoe not found"
+                fi
+            else
+                echo "  ✗ Failed to generate GeoJSONSeq"
+            fi
+        else
+            log_error "ogr2ogr not found. Cannot convert Shapefile."
+            echo "  ✗ ogr2ogr not found"
+        fi
+    else
+        echo "⚠ Shapefile not found at $GRID_SHP"
+        echo "  Looking in: $GRID_DIR"
+    fi
+else
+    echo "✓ grid_layer.mbtiles already exists"
 fi
 
 # Step 1.5: SKIP grid layer merging - keep separate!
