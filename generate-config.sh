@@ -578,34 +578,27 @@ fi
 if command -v docker >/dev/null 2>&1; then
     # Check if container exists
     if docker ps -a --format '{{.Names}}' | grep -q "^tileserver-zurich$"; then
-        echo "Container exists. Restarting..."
-        if docker restart tileserver-zurich; then
-            echo "✓ Container restarted successfully"
-            echo "✓ New tiles are now available via XYZ URLs"
-        else
-            echo "✗ Restart failed"
-        fi
-    else
-        echo "Container not found. Starting new container..."
-        
-        # Ensure fonts directory exists
-        if [ ! -d "fonts" ]; then
-            mkdir -p fonts
-            echo "✓ Created missing fonts directory"
-        fi
-        
-        # Determine paths
-        CURRENT_DIR=$(pwd)
-        
-        # Run container
-        if docker run -d \
+        echo "Container exists. Removing to ensure correct config/mounts..."
+        docker rm -f tileserver-zurich
+    fi
+
+    echo "Starting new container..."
+    
+    # Ensure fonts directory exists
+    if [ ! -d "$BASE_DIR/fonts" ]; then
+        mkdir -p "$BASE_DIR/fonts"
+        echo "✓ Created missing fonts directory"
+    fi
+    
+    # Run container
+    if docker run -d \
             --name tileserver-zurich \
             --restart unless-stopped \
             -p 8001:8080 \
-            -v "$CURRENT_DIR/data":/data \
-            -v "$CURRENT_DIR/config.json":/config.json \
-            -v "$CURRENT_DIR/styles":/styles \
-            -v "$CURRENT_DIR/fonts":/fonts \
+            -v "$DATA_DIR":/data \
+            -v "$CONFIG_FILE":/config.json \
+            -v "$BASE_DIR/styles":/styles \
+            -v "$BASE_DIR/fonts":/fonts \
             maptiler/tileserver-gl:latest \
             --config /config.json; then
             
@@ -614,7 +607,6 @@ if command -v docker >/dev/null 2>&1; then
         else
             echo "✗ Failed to start container"
         fi
-    fi
 else
     echo "⚠ Docker not available - please restart container manually"
 fi
