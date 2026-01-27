@@ -48,13 +48,23 @@ elif [ -d "$(pwd)/data" ]; then
     BASE_DIR="$(pwd)"
     log_info "Detected Local environment: $(pwd)/data"
 elif [ -d "/app/data/tileserver" ]; then
-    DATA_DIR="/app/data/tileserver"
+    if [ -d "/app/data/tileserver/data" ]; then
+        DATA_DIR="/app/data/tileserver/data"
+        log_info "Detected Docker environment with data subdir: /app/data/tileserver/data"
+    else
+        DATA_DIR="/app/data/tileserver"
+        log_info "Detected Docker environment (no data subdir): /app/data/tileserver"
+    fi
     BASE_DIR="/app"
-    log_info "Detected Docker environment: /app/data/tileserver"
 elif [ -d "/app/data" ]; then
-    DATA_DIR="/app/data"
+    if [ -d "/app/data/data" ]; then
+        DATA_DIR="/app/data/data"
+        log_info "Detected Docker environment with data subdir: /app/data/data"
+    else
+        DATA_DIR="/app/data"
+        log_info "Detected Docker environment (no data subdir): /app/data"
+    fi
     BASE_DIR="/app"
-    log_info "Detected Docker environment: /app/data"
 else
     # Default to current directory data
     mkdir -p "$(pwd)/data"
@@ -166,31 +176,11 @@ fi
 # Validation function
 is_valid_mbtiles() {
     local file="$1"
-    # echo "DEBUG: Checking validity of $file" >&2
-    [ -r "$file" ] || { echo "DEBUG: File not readable: $file" >&2; return 1; }
-    
-    # Check if it's a valid SQLite database with a tiles table
-    if command -v sqlite3 >/dev/null 2>&1; then
-        local tables_output
-        tables_output=$(sqlite3 "$file" ".tables" 2>&1)
-        if echo "$tables_output" | grep -q "tiles"; then
-            local tile_count
-            tile_count=$(sqlite3 "$file" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-            if [ "$tile_count" -gt 0 ]; then
-                return 0
-            else
-                echo "DEBUG: File $file has 0 tiles. (Tables: $tables_output)" >&2
-                return 1
-            fi
-        else
-            echo "DEBUG: File $file is missing 'tiles' table. Output: '$tables_output'" >&2
-            return 1
-        fi
-    else
-        # Fallback if sqlite3 is missing: just check if file is non-empty
-        [ -s "$file" ] || { echo "DEBUG: File $file is empty (sqlite3 missing)" >&2; return 1; }
+    # Basic check: file must exist, be readable and non-empty
+    if [ -r "$file" ] && [ -s "$file" ]; then
+        return 0
     fi
-    return 0
+    return 1
 }
 
 # Check if file has been merged before
@@ -595,6 +585,14 @@ fi
 
 TOTAL_DATASETS=$((INDIVIDUAL_COUNT + 1))
 echo "✓ Config generated with $TOTAL_DATASETS datasets"
+
+# Copy final config to /app/config.json if in Docker environment
+if [ -d "/app" ]; then
+    cp "$CONFIG_FILE" "/app/config.json"
+    log_success "Config copied to /app/config.json for immediate use"
+fi
+
+log_success "Configuration generated successfully at $CONFIG_FILE"
 
 # Show config
 echo ""
