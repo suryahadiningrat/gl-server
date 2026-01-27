@@ -588,8 +588,12 @@ echo "✓ Config generated with $TOTAL_DATASETS datasets"
 
 # Copy final config to /app/config.json if in Docker environment
 if [ -d "/app" ]; then
-    cp "$CONFIG_FILE" "/app/config.json"
-    log_success "Config copied to /app/config.json for immediate use"
+    if [ "$CONFIG_FILE" != "/app/config.json" ]; then
+        cp "$CONFIG_FILE" "/app/config.json"
+        log_success "Config copied to /app/config.json for immediate use"
+    else
+        log_info "Config already at /app/config.json, skipping copy"
+    fi
 fi
 
 log_success "Configuration generated successfully at $CONFIG_FILE"
