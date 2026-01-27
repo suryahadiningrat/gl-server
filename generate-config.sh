@@ -32,7 +32,21 @@ log_info "FORCE_REBUILD: $FORCE_REBUILD"
 if [ -n "$DATA_DIR" ]; then
     log_info "Using provided DATA_DIR: $DATA_DIR"
     # Detect base directory
-    BASE_DIR=$(dirname "$DATA_DIR")
+    if [[ "$DATA_DIR" == *"/app/data/tileserver"* ]]; then
+        BASE_DIR="/app"
+        log_info "Detected API Container environment (DATA_DIR is subdir), setting BASE_DIR to /app"
+    else
+        BASE_DIR=$(dirname "$DATA_DIR")
+    fi
+elif [ -d "$(dirname $(pwd))/data" ]; then
+    # Smart detection for when script is run from a subdir (e.g. scripts/)
+    DATA_DIR="$(dirname $(pwd))/data"
+    BASE_DIR="$(dirname $(pwd))"
+    log_info "Detected Parent environment (running from subdir): $DATA_DIR"
+elif [ -d "$(pwd)/data" ]; then
+    DATA_DIR="$(pwd)/data"
+    BASE_DIR="$(pwd)"
+    log_info "Detected Local environment: $(pwd)/data"
 elif [ -d "/app/data/tileserver" ]; then
     DATA_DIR="/app/data/tileserver"
     BASE_DIR="/app"
@@ -41,15 +55,6 @@ elif [ -d "/app/data" ]; then
     DATA_DIR="/app/data"
     BASE_DIR="/app"
     log_info "Detected Docker environment: /app/data"
-elif [ -d "$(pwd)/data" ]; then
-    DATA_DIR="$(pwd)/data"
-    BASE_DIR="$(pwd)"
-    log_info "Detected Local environment: $(pwd)/data"
-elif [ -d "$(dirname $(pwd))/data" ]; then
-    # Smart detection for when script is run from a subdir (e.g. scripts/)
-    DATA_DIR="$(dirname $(pwd))/data"
-    BASE_DIR="$(dirname $(pwd))"
-    log_info "Detected Parent environment (running from subdir): $DATA_DIR"
 else
     # Default to current directory data
     mkdir -p "$(pwd)/data"
@@ -161,10 +166,30 @@ fi
 # Validation function
 is_valid_mbtiles() {
     local file="$1"
-    [ -r "$file" ] || return 1
-    sqlite3 "$file" ".tables" 2>/dev/null | grep -q "tiles" || return 1
-    tiles=$(sqlite3 "$file" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-    [ "$tiles" -gt 0 ] || return 1
+    # echo "DEBUG: Checking validity of $file" >&2
+    [ -r "$file" ] || { echo "DEBUG: File not readable: $file" >&2; return 1; }
+    
+    # Check if it's a valid SQLite database with a tiles table
+    if command -v sqlite3 >/dev/null 2>&1; then
+        local tables_output
+        tables_output=$(sqlite3 "$file" ".tables" 2>&1)
+        if echo "$tables_output" | grep -q "tiles"; then
+            local tile_count
+            tile_count=$(sqlite3 "$file" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+            if [ "$tile_count" -gt 0 ]; then
+                return 0
+            else
+                echo "DEBUG: File $file has 0 tiles. (Tables: $tables_output)" >&2
+                return 1
+            fi
+        else
+            echo "DEBUG: File $file is missing 'tiles' table. Output: '$tables_output'" >&2
+            return 1
+        fi
+    else
+        # Fallback if sqlite3 is missing: just check if file is non-empty
+        [ -s "$file" ] || { echo "DEBUG: File $file is empty (sqlite3 missing)" >&2; return 1; }
+    fi
     return 0
 }
 
@@ -214,56 +239,66 @@ fi
 if [ ! -f "$GLMAP_FILE" ]; then
     log_info "Creating new glmap.mbtiles (DRONE ONLY - zoom 16-22)"
     echo "Creating new glmap.mbtiles (DRONE ONLY - zoom 16-22)..."
-    sqlite3 "$GLMAP_FILE" "
-        CREATE TABLE metadata (name text PRIMARY KEY, value text);
-        CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob);
-        CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row);
-        INSERT INTO metadata (name, value) VALUES ('name', 'Drone Imagery (High Resolution)');
-        INSERT INTO metadata (name, value) VALUES ('type', 'overlay');
-        INSERT INTO metadata (name, value) VALUES ('format', 'jpg');
-        INSERT INTO metadata (name, value) VALUES ('description', 'High-resolution drone imagery for detailed mapping');
-        INSERT INTO metadata (name, value) VALUES ('version', '1.3');
-        INSERT INTO metadata (name, value) VALUES ('attribution', 'Drone Imagery');
-        INSERT INTO metadata (name, value) VALUES ('minzoom', '16');
-        INSERT INTO metadata (name, value) VALUES ('maxzoom', '22');
-        INSERT INTO metadata (name, value) VALUES ('bounds', '95.0,-11.0,141.0,6.0');
-        INSERT INTO metadata (name, value) VALUES ('center', '105.75,-2.75,18');
-        INSERT INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,18],\"minzoom\":16,\"maxzoom\":22}');
-    "
-    echo "✓ New glmap.mbtiles initialized (DRONE ONLY - zoom 16-22)"
-    log_success "New glmap.mbtiles created"
+    
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 "$GLMAP_FILE" "
+            CREATE TABLE metadata (name text PRIMARY KEY, value text);
+            CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob);
+            CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row);
+            INSERT INTO metadata (name, value) VALUES ('name', 'Drone Imagery (High Resolution)');
+            INSERT INTO metadata (name, value) VALUES ('type', 'overlay');
+            INSERT INTO metadata (name, value) VALUES ('format', 'jpg');
+            INSERT INTO metadata (name, value) VALUES ('description', 'High-resolution drone imagery for detailed mapping');
+            INSERT INTO metadata (name, value) VALUES ('version', '1.3');
+            INSERT INTO metadata (name, value) VALUES ('attribution', 'Drone Imagery');
+            INSERT INTO metadata (name, value) VALUES ('minzoom', '16');
+            INSERT INTO metadata (name, value) VALUES ('maxzoom', '22');
+            INSERT INTO metadata (name, value) VALUES ('bounds', '95.0,-11.0,141.0,6.0');
+            INSERT INTO metadata (name, value) VALUES ('center', '105.75,-2.75,18');
+            INSERT INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,18],\"minzoom\":16,\"maxzoom\":22}');
+        "
+        echo "✓ New glmap.mbtiles initialized (DRONE ONLY - zoom 16-22)"
+        log_success "New glmap.mbtiles created"
+    else
+        echo "⚠ sqlite3 not found! Cannot create empty glmap.mbtiles."
+        echo "  Will rely on individual file merging or direct usage."
+        touch "$GLMAP_FILE" # Create empty file as placeholder
+    fi
 else
     log_info "Existing glmap.mbtiles found: $GLMAP_FILE"
     echo "✓ Existing glmap.mbtiles found"
-    # Check and fix metadata table structure
-    has_primary=$(sqlite3 "$GLMAP_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='metadata';" 2>/dev/null | grep -i "PRIMARY KEY" || echo "")
-    if [ -z "$has_primary" ]; then
-        echo "  Fixing metadata table structure..."
-        sqlite3 "$GLMAP_FILE" "
-            CREATE TABLE metadata_new (name text PRIMARY KEY, value text);
-            INSERT OR IGNORE INTO metadata_new SELECT * FROM metadata;
-            DROP TABLE metadata;
-            ALTER TABLE metadata_new RENAME TO metadata;
-        "
-    fi
     
-    # Update metadata if missing - DRONE ONLY (zoom 16-22)
-    has_bounds=$(sqlite3 "$GLMAP_FILE" "SELECT COUNT(*) FROM metadata WHERE name='bounds';" 2>/dev/null || echo "0")
-    if [ "$has_bounds" = "0" ]; then
-        echo "  Adding drone imagery metadata (zoom 16-22 only)..."
-        sqlite3 "$GLMAP_FILE" "
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('version', '1.3');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('attribution', 'Drone Imagery');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('minzoom', '16');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('maxzoom', '22');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('format', 'jpg');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('type', 'overlay');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('bounds', '95.0,-11.0,141.0,6.0');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('center', '105.75,-2.75,18');
-            INSERT OR REPLACE INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,18],\"minzoom\":16,\"maxzoom\":22}');
-            VACUUM;
-        "
-        echo "  ✓ Drone-only metadata added (zoom 16-22 coverage)"
+    if command -v sqlite3 >/dev/null 2>&1; then
+        # Check and fix metadata table structure
+        has_primary=$(sqlite3 "$GLMAP_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='metadata';" 2>/dev/null | grep -i "PRIMARY KEY" || echo "")
+        if [ -z "$has_primary" ]; then
+            echo "  Fixing metadata table structure..."
+            sqlite3 "$GLMAP_FILE" "
+                CREATE TABLE metadata_new (name text PRIMARY KEY, value text);
+                INSERT OR IGNORE INTO metadata_new SELECT * FROM metadata;
+                DROP TABLE metadata;
+                ALTER TABLE metadata_new RENAME TO metadata;
+            "
+        fi
+        
+        # Update metadata if missing - DRONE ONLY (zoom 16-22)
+        has_bounds=$(sqlite3 "$GLMAP_FILE" "SELECT COUNT(*) FROM metadata WHERE name='bounds';" 2>/dev/null || echo "0")
+        if [ "$has_bounds" = "0" ]; then
+            echo "  Adding drone imagery metadata (zoom 16-22 only)..."
+            sqlite3 "$GLMAP_FILE" "
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('version', '1.3');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('attribution', 'Drone Imagery');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('minzoom', '16');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('maxzoom', '22');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('format', 'jpg');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('type', 'overlay');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('bounds', '95.0,-11.0,141.0,6.0');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('center', '105.75,-2.75,18');
+                INSERT OR REPLACE INTO metadata (name, value) VALUES ('json', '{\"bounds\":[95.0,-11.0,141.0,6.0],\"center\":[105.75,-2.75,18],\"minzoom\":16,\"maxzoom\":22}');
+                VACUUM;
+            "
+            echo "  ✓ Drone-only metadata added (zoom 16-22 coverage)"
+        fi
     fi
 fi
 
@@ -397,32 +432,37 @@ log_info "Found: $NEW_COUNT new files, $SKIPPED_COUNT already merged"
 echo "Found: $NEW_COUNT new files, $SKIPPED_COUNT already merged"
 
 # Merge only new files
-if [ "$NEW_COUNT" -gt 0 ]; then
-    log_info "Merging $NEW_COUNT new files into glmap..."
-    echo "Merging new files into glmap..."
-    
-    for mbtiles_file in $NEW_FILES; do
-        filename=$(basename "$mbtiles_file")
-        echo "  Merging: $filename"
-        
-        if sqlite3 "$GLMAP_FILE" "
-            ATTACH DATABASE '$mbtiles_file' AS source;
-            INSERT OR IGNORE INTO tiles SELECT * FROM source.tiles;
-            DETACH DATABASE source;
-        " 2>/dev/null; then
-            echo "    ✓ Merged successfully"
-            mark_as_merged "$filename"
-        else
-            echo "    ✗ Failed to merge"
-        fi
-    done
-    
-    total=$(sqlite3 "$GLMAP_FILE" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-    log_success "Incremental merge complete (Total tiles: $total)"
-    echo "✓ Incremental merge complete (Total tiles: $total)"
-else
+if [ "$NEW_COUNT" -eq 0 ]; then
     log_info "No new files to merge"
     echo "✓ No new files to merge"
+else
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        log_error "sqlite3 not found - cannot merge files into glmap.mbtiles"
+        echo "⚠ sqlite3 not found! Skipping merge process."
+        echo "  Individual files will still be added to config.json."
+    else
+        log_info "Merging $NEW_COUNT new files into glmap..."
+        echo "Merging new files into glmap..."
+        
+        for mbtiles_file in $NEW_FILES; do
+            filename=$(basename "$mbtiles_file")
+            echo "  Merging: $filename"
+            
+            # Merge with metadata update
+            if sqlite3 "$GLMAP_FILE" "ATTACH '$mbtiles_file' AS toMerge; INSERT OR IGNORE INTO tiles SELECT * FROM toMerge.tiles; INSERT OR IGNORE INTO metadata SELECT * FROM toMerge.metadata WHERE name NOT IN (SELECT name FROM metadata); DETACH toMerge;" 2>/dev/null; then
+                mark_as_merged "$filename"
+                log_success "Merged $filename"
+                echo "    ✓ Merged successfully"
+            else
+                log_error "Failed to merge $filename"
+                echo "    ✗ Failed to merge"
+            fi
+        done
+        
+        total=$(sqlite3 "$GLMAP_FILE" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+        log_success "Incremental merge complete (Total tiles: $total)"
+        echo "✓ Incremental merge complete (Total tiles: $total)"
+    fi
 fi
 
 # Step 3: Generate config.json
@@ -600,16 +640,27 @@ if command -v docker >/dev/null 2>&1; then
     fi
     
     # Run container
+    # Use HOST_* variables for Docker-in-Docker mounts (defaults to local paths if not set)
+    HOST_DATA_DIR="${HOST_DATA_DIR:-$DATA_DIR}"
+    HOST_CONFIG_FILE="${HOST_CONFIG_FILE:-$CONFIG_FILE}"
+    HOST_BASE_DIR="${HOST_BASE_DIR:-$BASE_DIR}"
+    
+    log_info "Container Mounts (Host Paths):"
+    log_info "  Data: $HOST_DATA_DIR"
+    log_info "  Config: $HOST_CONFIG_FILE"
+    log_info "  Base: $HOST_BASE_DIR"
+
     if docker run -d \
             --name tileserver-zurich \
             --restart unless-stopped \
             -p 8001:8080 \
-            -v "$DATA_DIR":/data \
-            -v "$CONFIG_FILE":/config.json \
-            -v "$BASE_DIR/styles":/styles \
-            -v "$BASE_DIR/fonts":/fonts \
+            -v "$HOST_DATA_DIR":/data \
+            -v "$HOST_CONFIG_FILE":/config.json \
+            -v "$HOST_BASE_DIR/styles":/styles \
+            -v "$HOST_BASE_DIR/fonts":/fonts \
             maptiler/tileserver-gl:latest \
             --config /config.json; then
+
             
             echo "✓ Container started successfully"
             echo "✓ Tileserver is running at http://localhost:8001"

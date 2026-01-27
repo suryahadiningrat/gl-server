@@ -1,0 +1,68 @@
+services: 
+  idpm-api: 
+    build: 
+      context: . 
+      dockerfile: Dockerfile 
+    privileged: true 
+    pid: host 
+    env_file: 
+      - .env 
+    environment: 
+      - APP_PORT=${APP_PORT:-3001} 
+      - PREWARM_ON_START=true 
+      - DB_PREWARM=true 
+      - AUTH_DB_CHECK=true 
+      - ENABLE_CHECK_DEPRECATED=true 
+      - DISABLE_PERF_LOGGING=false 
+      - STARTUP_GRACE_PERIOD=30000 
+      - DATA_DIR=/app/data/tileserver 
+      - CONFIG_SCRIPT=/app/scripts/generate-config.sh 
+      - HOST_DATA_DIR=/home/docker/tileserver-gl/data 
+      - HOST_CONFIG_FILE=/home/docker/tileserver-gl/config.json 
+      - HOST_BASE_DIR=/home/docker/tileserver-gl 
+    ports: 
+      - "${APP_PORT:-3001}:3000" 
+    volumes: 
+      - type: bind 
+        source: ./logs 
+        target: /app/logs 
+      - type: bind 
+        source: ./public/logs/errors 
+        target: /app/public/logs/errors 
+      - type: bind 
+        source: /home/docker/tileserver-gl/data 
+        target: /app/data/tileserver 
+      - type: bind 
+        source: /etc/pmn-compiler/pmn-compiler-rifky 
+        target: /app/pmn-compiler 
+      - type: bind 
+        source: /home/docker/tileserver-gl/scripts 
+        target: /app/scripts 
+      - type: bind 
+        source: /home/docker/tileserver-gl/styles/default 
+        target: /app/styles/default 
+      - type: bind 
+        source: /home/docker/tileserver-gl/config.json 
+        target: /app/config.json 
+      - type: bind 
+        source: /var/run/docker.sock 
+        target: /var/run/docker.sock 
+      - type: bind 
+        source: /usr/bin/docker 
+        target: /usr/bin/docker 
+      - type: bind 
+        source: /home/docker/tileserver-gl/fonts 
+        target: /app/fonts 
+    networks: 
+      - idpm-network 
+    restart: unless-stopped 
+    healthcheck: 
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"] 
+      interval: 10s 
+      timeout: 5s 
+      retries: 3 
+      start_period: 60s 
+
+networks: 
+  idpm-network: 
+    external: true
