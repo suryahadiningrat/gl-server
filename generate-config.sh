@@ -439,10 +439,11 @@ else
             echo "  Merging: $filename"
             
             # Merge with metadata update
-            if sqlite3 "$GLMAP_FILE" "ATTACH '$mbtiles_file' AS toMerge; INSERT OR IGNORE INTO tiles SELECT * FROM toMerge.tiles; INSERT OR IGNORE INTO metadata SELECT * FROM toMerge.metadata WHERE name NOT IN (SELECT name FROM metadata); DETACH toMerge;" 2>/dev/null; then
+            # Changed INSERT OR IGNORE to INSERT OR REPLACE to allow updating existing areas with new imagery
+            if sqlite3 "$GLMAP_FILE" "ATTACH '$mbtiles_file' AS toMerge; INSERT OR REPLACE INTO tiles SELECT * FROM toMerge.tiles; INSERT OR REPLACE INTO metadata SELECT * FROM toMerge.metadata WHERE name NOT IN (SELECT name FROM metadata); DETACH toMerge;" 2>/dev/null; then
                 mark_as_merged "$filename"
                 log_success "Merged $filename"
-                echo "    ✓ Merged successfully"
+                echo "    ✓ Merged successfully (Overwrote existing tiles if any)"
             else
                 log_error "Failed to merge $filename"
                 echo "    ✗ Failed to merge"

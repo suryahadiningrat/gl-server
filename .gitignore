@@ -1,4 +1,5 @@
 data/*
+docker-api
 
 # Logs
 *.log
