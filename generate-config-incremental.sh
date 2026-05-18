@@ -517,26 +517,14 @@ fi
 append_data_entry "glmap" "data/glmap.mbtiles" "glmap (drone global, zoom 16-22)" "$FIRST_DATA"
 FIRST_DATA=""
 
-# Per-year/bpdas targets
-if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
-    if [ -f "$GLMAP_YEAR" ]; then
-        append_data_entry "glmap_${PARAM_YEAR}" \
-            "data/glmap_${PARAM_YEAR}.mbtiles" \
-            "glmap_${PARAM_YEAR} (GL Map Combined ${PARAM_YEAR})"
+# All existing per-year/bpdas glmap files — scan disk, not just current args
+for glmap_variant in "$DATA_DIR"/glmap_*.mbtiles; do
+    [ -f "$glmap_variant" ] || continue
+    basename_only=$(basename "$glmap_variant" .mbtiles)
+    if is_valid_mbtiles "$glmap_variant"; then
+        append_data_entry "$basename_only" "data/$(basename "$glmap_variant")" "$basename_only"
     fi
-
-    if [ -f "$GLMAP_BPDAS" ]; then
-        append_data_entry "glmap_${PARAM_BPDAS}" \
-            "data/glmap_${PARAM_BPDAS}.mbtiles" \
-            "glmap_${PARAM_BPDAS} (GL Map Combined ${PARAM_BPDAS})"
-    fi
-
-    if [ -f "$GLMAP_YEAR_BPDAS" ]; then
-        append_data_entry "glmap_${PARAM_YEAR}_${PARAM_BPDAS}" \
-            "data/glmap_${PARAM_YEAR}_${PARAM_BPDAS}.mbtiles" \
-            "glmap_${PARAM_YEAR}_${PARAM_BPDAS} (GL Map Combined ${PARAM_YEAR} ${PARAM_BPDAS})"
-    fi
-fi
+done
 
 # Individual drone files
 INDIVIDUAL_COUNT=0
