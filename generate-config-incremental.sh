@@ -74,12 +74,18 @@ elif [ -d "/app/data" ]; then
     DATA_DIR="/app/data"
     BASE_DIR="/app"
     log_info "Detected Docker environment: /app/data"
+elif [ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/data" ]; then
+    # Dijalankan di HOST: data dir = sibling folder 'scripts' (mis.
+    # /home/docker/tileserver-gl/scripts -> /home/docker/tileserver-gl/data)
+    BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    DATA_DIR="$BASE_DIR/data"
+    log_info "Detected host environment (relative to script): $DATA_DIR"
 else
     log_error "Data directory not found"
     exit 1
 fi
 
-CONFIG_FILE="${CONFIG_FILE:-/app/config.json}"
+CONFIG_FILE="${CONFIG_FILE:-$BASE_DIR/config.json}"
 STYLE_DIR="${STYLE_DIR:-$BASE_DIR/styles/default}"
 STYLE_FILE="${STYLE_FILE:-$STYLE_DIR/style.json}"
 GLMAP_FILE="${GLMAP_FILE:-$DATA_DIR/glmap.mbtiles}"
@@ -499,7 +505,7 @@ cat > "$TEMP_CONFIG" << 'EOF'
   },
   "styles": {
     "default": {
-      "style": "styles/default/style.json"
+      "style": "default/style.json"
     }
   },
   "data": {
@@ -608,11 +614,14 @@ log_info "=== Step 7: Updating PostgreSQL Database ==="
 echo ""
 echo "=== Step 7: Updating PostgreSQL Database ==="
 
-DBHOST="172.26.11.153"
-DBUSER="pg"
-DBPASS="~nagha2025yasha@~"
-DBNAME="postgres"
-DBPORT="5432"
+# DB BARU (host migrasi). Bisa di-override lewat env. Record drone
+# (geoportal.pmn_drone_imagery) ditulis backend ke DB baru 172.16.3.102,
+# jadi update lat/lon/status harus ke sini — bukan host lama 172.26.11.153.
+DBHOST="${DBHOST:-172.16.3.102}"
+DBUSER="${DBUSER:-app_db}"
+DBPASS="${DBPASS:-R00T_DB_M4ND4R4}"
+DBNAME="${DBNAME:-postgres}"
+DBPORT="${DBPORT:-5432}"
 
 if [ "$SKIP_DB_UPDATE" = "true" ]; then
     log_info "Database update skipped (SKIP_DB_UPDATE=true)"
@@ -761,13 +770,13 @@ grid_tiles=$(sqlite3 "$GRID_MBTILES" "SELECT COUNT(*) FROM tiles;" 2>/dev/null |
 if [ -f "$GRID_MBTILES" ]; then
     echo "✓ grid_layer.mbtiles (SEPARATE vector):"
     echo "  - Zoom: 0-14  |  Tiles: $grid_tiles"
-    echo "  - URL: https://glserver.ptnaghayasha.com/data/grid_layer/{z}/{x}/{y}.pbf"
+    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/grid_layer/{z}/{x}/{y}.pbf"
     echo ""
 fi
 
 echo "✓ glmap.mbtiles (Drone Global):"
 echo "  - Zoom: 16-22  |  Tiles: $drone_tiles"
-echo "  - URL: https://glserver.ptnaghayasha.com/data/glmap/{z}/{x}/{y}.jpg"
+echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap/{z}/{x}/{y}.jpg"
 
 if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
     echo ""
@@ -777,15 +786,15 @@ if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
 
     echo "✓ glmap_${PARAM_YEAR}.mbtiles (GL Map Combined ${PARAM_YEAR}):"
     echo "  - Tiles: $year_tiles"
-    echo "  - URL: https://glserver.ptnaghayasha.com/data/glmap_${PARAM_YEAR}/{z}/{x}/{y}.jpg"
+    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${PARAM_YEAR}/{z}/{x}/{y}.jpg"
     echo ""
     echo "✓ glmap_${PARAM_BPDAS}.mbtiles (GL Map Combined ${PARAM_BPDAS}):"
     echo "  - Tiles: $bpdas_tiles"
-    echo "  - URL: https://glserver.ptnaghayasha.com/data/glmap_${PARAM_BPDAS}/{z}/{x}/{y}.jpg"
+    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${PARAM_BPDAS}/{z}/{x}/{y}.jpg"
     echo ""
     echo "✓ glmap_${PARAM_YEAR}_${PARAM_BPDAS}.mbtiles (GL Map Combined ${PARAM_YEAR} ${PARAM_BPDAS}):"
     echo "  - Tiles: $yb_tiles"
-    echo "  - URL: https://glserver.ptnaghayasha.com/data/glmap_${PARAM_YEAR}_${PARAM_BPDAS}/{z}/{x}/{y}.jpg"
+    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${PARAM_YEAR}_${PARAM_BPDAS}/{z}/{x}/{y}.jpg"
 fi
 
 echo ""

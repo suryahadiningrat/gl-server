@@ -248,7 +248,7 @@ def main():
     print()
     print("Use in Leaflet:")
     print()
-    print("L.tileLayer('https://glserver.ptnaghayasha.com/data/grid_layer_raster/{z}/{x}/{y}.png', {")
+    print("L.tileLayer('https://mandara.pdasrh.kehutanan.go.id/glserver/data/grid_layer_raster/{z}/{x}/{y}.png', {")
     print("    minZoom: 0,")
     print("    maxZoom: 14,")
     print("    opacity: 0.6")

@@ -1164,7 +1164,7 @@ if [ -f "$GRID_MBTILES" ]; then
     echo "  - Format: Vector (PBF)"
     echo "  - Zoom: 0-14"
     echo "  - Tiles: $grid_tiles tiles"
-    echo "  - URL: https://glserver.ptnaghayasha.com/data/grid_layer/{z}/{x}/{y}.pbf"
+    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/grid_layer/{z}/{x}/{y}.pbf"
     echo ""
 fi
 
@@ -1172,7 +1172,7 @@ echo "✓ glmap.mbtiles (DRONE ONLY):"
 echo "  - Format: Raster (JPG)"
 echo "  - Zoom: 16-22"
 echo "  - Tiles: $drone_tiles tiles"
-echo "  - URL: https://glserver.ptnaghayasha.com/data/glmap/{z}/{x}/{y}.jpg"
+echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap/{z}/{x}/{y}.jpg"
 echo ""
 
 if [ -f "$PMTILES_FILE" ]; then
@@ -1199,8 +1199,8 @@ echo "  Layer 2 (Overlay): glmap - Drone imagery (zoom 16-22)"
 echo ""
 echo "📱 FRONTEND INTEGRATION:"
 echo "  Add both XYZ URLs to your Leaflet/Mapbox GL JS application:"
-echo "  1. Grid:  https://glserver.ptnaghayasha.com/data/grid_layer/{z}/{x}/{y}.pbf"
-echo "  2. Drone: https://glserver.ptnaghayasha.com/data/glmap/{z}/{x}/{y}.jpg"
+echo "  1. Grid:  https://mandara.pdasrh.kehutanan.go.id/glserver/data/grid_layer/{z}/{x}/{y}.pbf"
+echo "  2. Drone: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap/{z}/{x}/{y}.jpg"
 echo "  - Will show grid at zoom 0-14"
 echo "  - Will show drone at zoom 16-22"
 echo ""
