@@ -700,17 +700,19 @@ echo "✓ Added $INDIVIDUAL_COUNT individual files"
 [ $SKIPPED_INVALID -gt 0 ] && echo "⚠ Skipped $SKIPPED_INVALID invalid files"
 
 # Validate & save JSON
+_tmp_real=$(realpath "$TEMP_CONFIG" 2>/dev/null || echo "$TEMP_CONFIG")
+_cfg_real=$(realpath "$CONFIG_FILE" 2>/dev/null || echo "$CONFIG_FILE")
 if command -v python3 >/dev/null 2>&1; then
     if python3 -m json.tool "$TEMP_CONFIG" >/dev/null 2>&1; then
         echo "✓ JSON valid"
-        cp "$TEMP_CONFIG" "$CONFIG_FILE"
+        [ "$_tmp_real" != "$_cfg_real" ] && cp "$TEMP_CONFIG" "$CONFIG_FILE"
     else
         echo "✗ JSON invalid!"
         cat "$TEMP_CONFIG"
         exit 1
     fi
 else
-    cp "$TEMP_CONFIG" "$CONFIG_FILE"
+    [ "$_tmp_real" != "$_cfg_real" ] && cp "$TEMP_CONFIG" "$CONFIG_FILE"
 fi
 
 TOTAL_DATASETS=$((INDIVIDUAL_COUNT + 1))
