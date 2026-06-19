@@ -28,8 +28,9 @@ S3_SECRET_KEY="${S3_SECRET_KEY:-onRpTNfs5jpo8eMU8oLRbQv1Z5QBhbjO4Spb1PzU}"
 S3_HOSTNAME="${S3_HOSTNAME:-https://mandara.pdasrh.kehutanan.go.id/storage}"
 
 # Webhook Configuration
-WEBHOOK_URL="${WEBHOOK_URL:-https://mandara.pdasrh.kehutanan.go.id/portal-api/api}"
+WEBHOOK_URL="${WEBHOOK_URL:-https://mandara.pdasrh.kehutanan.go.id/portal-api/api/minio-webhook}"
 WEBHOOK_ENABLED="${WEBHOOK_ENABLED:-true}"
+WEBHOOK_SECRET="${WEBHOOK_SECRET:-mandara-webhook-2026}"
 
 # PostgreSQL Configuration
 DB_HOST="${DB_HOST:-172.16.3.102}"
@@ -286,6 +287,7 @@ EOF
     local response=$(curl -X POST "$WEBHOOK_URL" \
         -H "Content-Type: application/json" \
         -H "User-Agent: MinIO" \
+        -H "X-Webhook-Secret: ${WEBHOOK_SECRET:-mandara-webhook-2026}" \
         -d "$payload" \
         --silent \
         --write-out "\n%{http_code}" \
