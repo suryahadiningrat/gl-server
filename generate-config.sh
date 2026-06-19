@@ -589,7 +589,9 @@ echo "✓ Config generated with $TOTAL_DATASETS datasets"
 
 # Copy final config to /app/config.json if in Docker environment
 if [ -d "/app" ]; then
-    if [ "$CONFIG_FILE" != "/app/config.json" ]; then
+    _src=$(realpath "$CONFIG_FILE" 2>/dev/null || echo "$CONFIG_FILE")
+    _dst=$(realpath "/app/config.json" 2>/dev/null || echo "/app/config.json")
+    if [ "$_src" != "$_dst" ]; then
         cp "$CONFIG_FILE" "/app/config.json"
         log_success "Config copied to /app/config.json for immediate use"
     else
