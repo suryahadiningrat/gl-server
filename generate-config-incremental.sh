@@ -1,59 +1,99 @@
 #!/bin/bash
 
-# Enhanced generate-config.sh dengan incremental merge dan separate grid layer
-# Features:
-# 1. Incremental merge - hanya merge file drone baru
-# 2. Grid layer SEPARATE - tidak dimerge ke glmap (optimal performance)
-# 3. Per-year, per-BPDAS, per-year-BPDAS glmap support
+# Enhanced generate-config.sh dengan incremental merge, separate grid layer,
+# dan dukungan penuh filter tahun/bulan/bpdas (semua kombinasi).
 #
-# Usage:
-#   ./generate-config-incremental.sh                                          -> global only
-#   ./generate-config-incremental.sh 2026 AGAMKUANTAN file1.mbtiles ...      -> global + per-year/bpdas
-#   ./generate-config-incremental.sh 2026 AGAMKUANTAN file1.mbtiles file2.mbtiles
+# Semua non-empty subset dari {tahun, bulan, bpdas} yang di-provide akan
+# menghasilkan combined mbtiles tersendiri, misalnya:
+#   glmap_2026.mbtiles            (tahun saja)
+#   glmap_06.mbtiles              (bulan saja)
+#   glmap_AGAMKUANTAN.mbtiles     (bpdas saja)
+#   glmap_2026_06.mbtiles         (tahun + bulan)
+#   glmap_2026_AGAMKUANTAN.mbtiles (tahun + bpdas)
+#   glmap_06_AGAMKUANTAN.mbtiles  (bulan + bpdas)
+#   glmap_2026_06_AGAMKUANTAN.mbtiles (tahun + bulan + bpdas)
+#
+# Usage (named flags — recommended):
+#   ./generate-config-incremental.sh
+#   ./generate-config-incremental.sh --tahun 2026
+#   ./generate-config-incremental.sh --tahun 2026 --bulan 6
+#   ./generate-config-incremental.sh --tahun 2026 --bulan 6 --bpdas AGAMKUANTAN file1.mbtiles ...
+#
+# Legacy positional form (masih di-support untuk backward compat webhook):
+#   ./generate-config-incremental.sh 2026 AGAMKUANTAN file1.mbtiles ...
 
 set -e
 
 # ─────────────────────────────────────────────
 # Logging functions
 # ─────────────────────────────────────────────
-log_info() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] $*" >&2
-}
-
-log_error() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $*" >&2
-}
-
-log_success() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [SUCCESS] $*" >&2
-}
+log_info()    { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [INFO]    $*" >&2; }
+log_error()   { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR]   $*" >&2; }
+log_success() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [SUCCESS] $*" >&2; }
 
 # ─────────────────────────────────────────────
 # Parse arguments
+# Named flags: --tahun, --bulan, --bpdas; remaining args = file list
+# Legacy positional: YEAR BPDAS [files...]
 # ─────────────────────────────────────────────
-# Arguments: [YEAR] [BPDAS] [file1.mbtiles] [file2.mbtiles] ...
 PARAM_YEAR=""
+PARAM_BULAN=""
 PARAM_BPDAS=""
-PARAM_FILES=()   # Specific files to merge (filenames only, not full paths)
+PARAM_FILES=()
 
-if [ $# -ge 2 ]; then
-    # First arg is YEAR (numeric), second is BPDAS (string)
-    if [[ "$1" =~ ^[0-9]{4}$ ]]; then
-        PARAM_YEAR="$1"
-        PARAM_BPDAS="$2"
-        shift 2
-
-        # Remaining args are mbtiles filenames
-        for f in "$@"; do
-            PARAM_FILES+=("$f")
-        done
-    fi
+if [ $# -ge 2 ] && [[ "$1" =~ ^[0-9]{4}$ ]] && [[ "$2" != --* ]]; then
+    # Legacy positional mode
+    PARAM_YEAR="$1"
+    PARAM_BPDAS=$(echo "$2" | tr '[:lower:]' '[:upper:]')
+    shift 2
+    while [ $# -gt 0 ]; do PARAM_FILES+=("$1"); shift; done
+else
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --tahun) PARAM_YEAR="$2"; shift 2 ;;
+            --bulan) PARAM_BULAN="$2"; shift 2 ;;
+            --bpdas) PARAM_BPDAS=$(echo "$2" | tr '[:lower:]' '[:upper:]'); shift 2 ;;
+            --) shift; while [ $# -gt 0 ]; do PARAM_FILES+=("$1"); shift; done; break ;;
+            -*) log_error "Unknown flag: $1"; exit 1 ;;
+            *) PARAM_FILES+=("$1"); shift ;;
+        esac
+    done
 fi
 
+# Zero-pad month: 6 → 06 (konsisten dengan slugFor di frontend)
+PARAM_BULAN_PAD=""
+[ -n "$PARAM_BULAN" ] && PARAM_BULAN_PAD=$(printf "%02d" "$PARAM_BULAN")
+
 log_info "Script started: generate-config-incremental.sh"
-log_info "PARAM_YEAR: ${PARAM_YEAR:-<not set>}"
+log_info "PARAM_YEAR:  ${PARAM_YEAR:-<not set>}"
+log_info "PARAM_BULAN: ${PARAM_BULAN:-<not set>} (padded: ${PARAM_BULAN_PAD:-n/a})"
 log_info "PARAM_BPDAS: ${PARAM_BPDAS:-<not set>}"
 log_info "PARAM_FILES: ${PARAM_FILES[*]:-<none>}"
+
+# ─────────────────────────────────────────────
+# Build TARGET_SUFFIXES: semua non-empty subset dari params yang di-provide.
+# Setiap suffix → glmap_${suffix}.mbtiles + .merged_${suffix}.log
+# ─────────────────────────────────────────────
+TARGET_SUFFIXES=()
+
+[ -n "$PARAM_YEAR" ]      && TARGET_SUFFIXES+=("$PARAM_YEAR")
+[ -n "$PARAM_BULAN_PAD" ] && TARGET_SUFFIXES+=("$PARAM_BULAN_PAD")
+[ -n "$PARAM_BPDAS" ]     && TARGET_SUFFIXES+=("$PARAM_BPDAS")
+
+if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BULAN_PAD" ]; then
+    TARGET_SUFFIXES+=("${PARAM_YEAR}_${PARAM_BULAN_PAD}")
+fi
+if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
+    TARGET_SUFFIXES+=("${PARAM_YEAR}_${PARAM_BPDAS}")
+fi
+if [ -n "$PARAM_BULAN_PAD" ] && [ -n "$PARAM_BPDAS" ]; then
+    TARGET_SUFFIXES+=("${PARAM_BULAN_PAD}_${PARAM_BPDAS}")
+fi
+if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BULAN_PAD" ] && [ -n "$PARAM_BPDAS" ]; then
+    TARGET_SUFFIXES+=("${PARAM_YEAR}_${PARAM_BULAN_PAD}_${PARAM_BPDAS}")
+fi
+
+log_info "TARGET_SUFFIXES: ${TARGET_SUFFIXES[*]:-<none — global only>}"
 
 # ─────────────────────────────────────────────
 # Environment & paths
@@ -65,7 +105,10 @@ log_info "FORCE_REBUILD: $FORCE_REBUILD"
 
 if [ -n "$DATA_DIR" ]; then
     log_info "Using provided DATA_DIR: $DATA_DIR"
-    BASE_DIR=$(dirname "$DATA_DIR")
+    case "$DATA_DIR" in
+      /app/*) BASE_DIR="/app" ;;
+      *)      BASE_DIR=$(dirname "$DATA_DIR") ;;
+    esac
 elif [ -d "/app/data/tileserver" ]; then
     DATA_DIR="/app/data/tileserver"
     BASE_DIR="/app"
@@ -75,8 +118,6 @@ elif [ -d "/app/data" ]; then
     BASE_DIR="/app"
     log_info "Detected Docker environment: /app/data"
 elif [ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/data" ]; then
-    # Dijalankan di HOST: data dir = sibling folder 'scripts' (mis.
-    # /home/docker/tileserver-gl/scripts -> /home/docker/tileserver-gl/data)
     BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     DATA_DIR="$BASE_DIR/data"
     log_info "Detected host environment (relative to script): $DATA_DIR"
@@ -93,40 +134,24 @@ GRID_MBTILES="${GRID_MBTILES:-$DATA_DIR/grid_layer.mbtiles}"
 MERGE_LOG="${MERGE_LOG:-$DATA_DIR/.merged_files.log}"
 TEMP_CONFIG="${TEMP_CONFIG:-/tmp/config_temp.json}"
 
-# Derived paths for year/bpdas targets
-GLMAP_YEAR=""
-GLMAP_BPDAS=""
-GLMAP_YEAR_BPDAS=""
-MERGE_LOG_YEAR=""
-MERGE_LOG_BPDAS=""
-MERGE_LOG_YEAR_BPDAS=""
-
-if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
-    GLMAP_YEAR="$DATA_DIR/glmap_${PARAM_YEAR}.mbtiles"
-    GLMAP_BPDAS="$DATA_DIR/glmap_${PARAM_BPDAS}.mbtiles"
-    GLMAP_YEAR_BPDAS="$DATA_DIR/glmap_${PARAM_YEAR}_${PARAM_BPDAS}.mbtiles"
-    MERGE_LOG_YEAR="$DATA_DIR/.merged_${PARAM_YEAR}.log"
-    MERGE_LOG_BPDAS="$DATA_DIR/.merged_${PARAM_BPDAS}.log"
-    MERGE_LOG_YEAR_BPDAS="$DATA_DIR/.merged_${PARAM_YEAR}_${PARAM_BPDAS}.log"
-fi
-
 GRID_DIR="$DATA_DIR/GRID_DRONE_36_HA_EKSISTING_POTENSI"
 GRID_SHP="$GRID_DIR/GRID_36_HA_EKSISTING_POTENSI.shp"
 
 log_info "=== Configuration ==="
 log_info "Data directory: $DATA_DIR"
-log_info "Config file: $CONFIG_FILE"
+log_info "Config file:    $CONFIG_FILE"
 log_info "Glmap (global): $GLMAP_FILE"
-[ -n "$GLMAP_YEAR" ]      && log_info "Glmap (year):   $GLMAP_YEAR"
-[ -n "$GLMAP_BPDAS" ]     && log_info "Glmap (bpdas):  $GLMAP_BPDAS"
-[ -n "$GLMAP_YEAR_BPDAS" ] && log_info "Glmap (y+b):    $GLMAP_YEAR_BPDAS"
+for s in "${TARGET_SUFFIXES[@]}"; do
+    log_info "Glmap ($s): $DATA_DIR/glmap_${s}.mbtiles"
+done
 
 echo "=== Enhanced Generate Config Script ==="
 echo "Data directory: $DATA_DIR"
-echo "Year/BPDAS: ${PARAM_YEAR:-none} / ${PARAM_BPDAS:-none}"
+printf "Params — Year: %s | Bulan: %s | BPDAS: %s\n" \
+    "${PARAM_YEAR:-none}" "${PARAM_BULAN:-none}" "${PARAM_BPDAS:-none}"
+echo "Targets: global ${TARGET_SUFFIXES[*]:-}"
 echo ""
 
-# Create directories
 mkdir -p "$STYLE_DIR"
 mkdir -p "$DATA_DIR"
 
@@ -246,7 +271,6 @@ init_mbtiles() {
 fix_mbtiles_metadata() {
     local target="$1"
 
-    # Ensure PRIMARY KEY on metadata
     local has_primary
     has_primary=$(sqlite3 "$target" "SELECT sql FROM sqlite_master WHERE type='table' AND name='metadata';" 2>/dev/null | grep -i "PRIMARY KEY" || echo "")
     if [ -z "$has_primary" ]; then
@@ -258,7 +282,6 @@ fix_mbtiles_metadata() {
         "
     fi
 
-    # Add missing bounds/minzoom etc
     local has_bounds
     has_bounds=$(sqlite3 "$target" "SELECT COUNT(*) FROM metadata WHERE name='bounds';" 2>/dev/null || echo "0")
     if [ "$has_bounds" = "0" ]; then
@@ -317,42 +340,37 @@ merge_into() {
 }
 
 # ─────────────────────────────────────────────
-# Step 0: Handle FORCE_REBUILD for all targets
+# Step 0: Handle FORCE_REBUILD — hapus semua target lama
 # ─────────────────────────────────────────────
 if [ "$FORCE_REBUILD" = "true" ]; then
-    log_info "FORCE_REBUILD enabled - removing old files"
+    log_info "FORCE_REBUILD enabled — removing old files"
     echo "⚠ FORCE_REBUILD enabled..."
     rm -f "$GLMAP_FILE" "$MERGE_LOG"
     touch "$MERGE_LOG"
-    if [ -n "$PARAM_YEAR" ]; then
-        rm -f "$GLMAP_YEAR" "$MERGE_LOG_YEAR"
-        rm -f "$GLMAP_BPDAS" "$MERGE_LOG_BPDAS"
-        rm -f "$GLMAP_YEAR_BPDAS" "$MERGE_LOG_YEAR_BPDAS"
-        touch "$MERGE_LOG_YEAR" "$MERGE_LOG_BPDAS" "$MERGE_LOG_YEAR_BPDAS"
-    fi
+    for s in "${TARGET_SUFFIXES[@]}"; do
+        rm -f "$DATA_DIR/glmap_${s}.mbtiles" "$DATA_DIR/.merged_${s}.log"
+        touch "$DATA_DIR/.merged_${s}.log"
+        log_info "Cleared: glmap_${s}.mbtiles"
+    done
     echo "✓ Old files removed, will merge from scratch"
 fi
 
 # ─────────────────────────────────────────────
-# Step 1: Initialize merge logs & mbtiles
+# Step 1: Initialize merge logs & mbtiles targets
 # ─────────────────────────────────────────────
 log_info "=== Step 1: Initializing mbtiles targets ==="
 echo ""
 echo "=== Step 1: Initializing mbtiles targets ==="
 
 [ ! -f "$MERGE_LOG" ] && touch "$MERGE_LOG"
-
 ensure_mbtiles "$GLMAP_FILE" "Drone Imagery (High Resolution)"
 
-if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
-    [ ! -f "$MERGE_LOG_YEAR" ]      && touch "$MERGE_LOG_YEAR"
-    [ ! -f "$MERGE_LOG_BPDAS" ]     && touch "$MERGE_LOG_BPDAS"
-    [ ! -f "$MERGE_LOG_YEAR_BPDAS" ] && touch "$MERGE_LOG_YEAR_BPDAS"
-
-    ensure_mbtiles "$GLMAP_YEAR"      "GL Map Combined ${PARAM_YEAR}"
-    ensure_mbtiles "$GLMAP_BPDAS"     "GL Map Combined ${PARAM_BPDAS}"
-    ensure_mbtiles "$GLMAP_YEAR_BPDAS" "GL Map Combined ${PARAM_YEAR} ${PARAM_BPDAS}"
-fi
+for s in "${TARGET_SUFFIXES[@]}"; do
+    target="$DATA_DIR/glmap_${s}.mbtiles"
+    log_file="$DATA_DIR/.merged_${s}.log"
+    [ ! -f "$log_file" ] && touch "$log_file"
+    ensure_mbtiles "$target" "GL Map Combined ${s//_/ }"
+done
 
 # ─────────────────────────────────────────────
 # Step 2: Grid layer status
@@ -371,8 +389,8 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Step 3: Merge files into global glmap (existing behavior)
-# Scans all *.mbtiles in $DATA_DIR, skips already-merged
+# Step 3: Merge ALL new *.mbtiles in DATA_DIR into global glmap
+# (Incremental — skip already-merged files)
 # ─────────────────────────────────────────────
 log_info "=== Step 3: Merging Drone Imagery into Global glmap ==="
 echo ""
@@ -385,7 +403,7 @@ for mbtiles_file in "$DATA_DIR"/*.mbtiles; do
     [ -f "$mbtiles_file" ] || continue
     filename=$(basename "$mbtiles_file")
 
-    # Skip special files
+    # Skip special/managed files
     [[ "$filename" == "glmap.mbtiles" ]]       && continue
     [[ "$filename" == "grid_layer.mbtiles" ]]   && continue
     [[ "$filename" == glmap_*.mbtiles ]]        && continue
@@ -420,20 +438,21 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Step 4: Merge argument files into per-year/bpdas targets
-# Only runs if YEAR + BPDAS + files were provided
+# Step 4: Merge argument files into per-filter targets
+# Setiap file yang di-pass sebagai argumen di-merge ke SEMUA TARGET_SUFFIXES
+# (karena file itu termasuk dalam tahun+bulan+bpdas yang di-specify)
 # ─────────────────────────────────────────────
-if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
-    log_info "=== Step 4: Merging Argument Files into Year/BPDAS targets ==="
+if [ "${#TARGET_SUFFIXES[@]}" -gt 0 ]; then
+    log_info "=== Step 4: Merging Argument Files into Per-Filter Targets ==="
     echo ""
-    echo "=== Step 4: Merging Argument Files into Year/BPDAS targets ==="
+    echo "=== Step 4: Merging Argument Files into Per-Filter Targets ==="
+    echo "Targets: ${TARGET_SUFFIXES[*]}"
 
     if [ "${#PARAM_FILES[@]}" -eq 0 ]; then
-        echo "⚠ No files specified as arguments — Year/BPDAS targets will not receive new tiles"
-        log_info "No argument files provided, skipping year/bpdas merge"
+        echo "⚠ No files specified as arguments — per-filter targets will not receive new tiles"
+        log_info "No argument files provided, skipping per-filter merge"
     else
         for filename in "${PARAM_FILES[@]}"; do
-            # Support full path or filename only
             if [[ "$filename" == /* ]]; then
                 mbtiles_file="$filename"
             else
@@ -454,33 +473,150 @@ if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
             echo ""
             echo "  Processing: $(basename "$mbtiles_file") ($tile_count tiles)"
 
-            merge_into "$GLMAP_YEAR"      "$mbtiles_file" "$MERGE_LOG_YEAR"
-            merge_into "$GLMAP_BPDAS"     "$mbtiles_file" "$MERGE_LOG_BPDAS"
-            merge_into "$GLMAP_YEAR_BPDAS" "$mbtiles_file" "$MERGE_LOG_YEAR_BPDAS"
+            for s in "${TARGET_SUFFIXES[@]}"; do
+                target="$DATA_DIR/glmap_${s}.mbtiles"
+                log_file="$DATA_DIR/.merged_${s}.log"
+                merge_into "$target" "$mbtiles_file" "$log_file"
+            done
         done
 
-        year_tiles=$(sqlite3 "$GLMAP_YEAR"      "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-        bpdas_tiles=$(sqlite3 "$GLMAP_BPDAS"    "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-        yb_tiles=$(sqlite3 "$GLMAP_YEAR_BPDAS"  "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-
-        log_success "Year/BPDAS merge done"
         echo ""
-        echo "✓ glmap_${PARAM_YEAR}.mbtiles          → $year_tiles tiles"
-        echo "✓ glmap_${PARAM_BPDAS}.mbtiles         → $bpdas_tiles tiles"
-        echo "✓ glmap_${PARAM_YEAR}_${PARAM_BPDAS}.mbtiles → $yb_tiles tiles"
+        for s in "${TARGET_SUFFIXES[@]}"; do
+            target="$DATA_DIR/glmap_${s}.mbtiles"
+            count=$(sqlite3 "$target" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+            log_success "glmap_${s}.mbtiles → $count tiles"
+            echo "✓ glmap_${s}.mbtiles → $count tiles"
+        done
+    fi
+fi
+
+# ─────────────────────────────────────────────
+# Step 4b: Auto-discover BPDAS dari DB dan generate per-BPDAS combinations
+# Hanya berjalan jika --bpdas TIDAK di-set tapi ada tahun/bulan.
+# Script query DB → dapat semua BPDAS beserta daftar filenya → merge masing-masing.
+# ─────────────────────────────────────────────
+if [ -z "$PARAM_BPDAS" ] && { [ -n "$PARAM_YEAR" ] || [ -n "$PARAM_BULAN_PAD" ]; }; then
+    log_info "=== Step 4b: Auto-discovering BPDAS from database ==="
+    echo ""
+    echo "=== Step 4b: Auto-discovering BPDAS from database ==="
+
+    DB_UPDATE_AVAILABLE_4B="true"
+    if ! python3 -c "import psycopg2" 2>/dev/null; then
+        if ! pip3 install psycopg2-binary >/dev/null 2>&1; then
+            echo "⚠ psycopg2 not available — skipping BPDAS auto-discover"
+            DB_UPDATE_AVAILABLE_4B="false"
+        fi
+    fi
+
+    if [ "$DB_UPDATE_AVAILABLE_4B" = "true" ]; then
+        # Query DB: bpdas → list of filenames (diambil dari storage_path)
+        BPDAS_MAP_JSON=$(python3 << PYEOF
+import psycopg2, json, sys
+from collections import defaultdict
+try:
+    conn = psycopg2.connect(
+        host='$DBHOST', port=$DBPORT,
+        user='$DBUSER', password='$DBPASS', database='$DBNAME'
+    )
+    cur = conn.cursor()
+    where = ["bpdas IS NOT NULL", "captured_at IS NOT NULL", "storage_path IS NOT NULL"]
+    params = []
+    if '$PARAM_YEAR':
+        where.append("EXTRACT(YEAR FROM captured_at) = %s")
+        params.append(int('$PARAM_YEAR'))
+    if '$PARAM_BULAN':
+        where.append("EXTRACT(MONTH FROM captured_at) = %s")
+        params.append(int('$PARAM_BULAN'))
+    sql = "SELECT bpdas, storage_path FROM geoportal.pmn_drone_imagery WHERE " + " AND ".join(where)
+    cur.execute(sql, params)
+    bpdas_files = defaultdict(list)
+    for bpdas, sp in cur.fetchall():
+        fname = sp.rstrip('/').split('/')[-1]
+        bpdas_files[bpdas.strip().upper()].append(fname)
+    print(json.dumps(dict(bpdas_files)))
+    cur.close(); conn.close()
+except Exception as e:
+    print(json.dumps({}), file=sys.stderr)
+    print("{}")
+PYEOF
+)
+
+        # Iterasi setiap BPDAS yang ditemukan
+        BPDAS_LIST=$(python3 -c "import json,sys; d=json.loads('$BPDAS_MAP_JSON'); [print(k) for k in d.keys()]" 2>/dev/null || true)
+
+        if [ -z "$BPDAS_LIST" ]; then
+            echo "⚠ Tidak ada BPDAS ditemukan di DB untuk filter ini"
+        else
+            echo "BPDAS ditemukan:"
+            echo "$BPDAS_LIST" | while read -r bpdas; do echo "  - $bpdas"; done
+
+            echo "$BPDAS_LIST" | while read -r AUTO_BPDAS; do
+                [ -z "$AUTO_BPDAS" ] && continue
+                echo ""
+                echo "── Processing BPDAS: $AUTO_BPDAS ──"
+
+                # Ambil daftar file untuk BPDAS ini dari JSON
+                AUTO_FILES_JSON=$(python3 -c "
+import json
+d = json.loads('''$BPDAS_MAP_JSON''')
+files = d.get('$AUTO_BPDAS', [])
+print(' '.join(files))
+" 2>/dev/null || echo "")
+
+                # Build target suffixes untuk kombinasi yang melibatkan AUTO_BPDAS
+                AUTO_SUFFIXES=()
+                AUTO_SUFFIXES+=("$AUTO_BPDAS")
+                [ -n "$PARAM_YEAR" ]      && AUTO_SUFFIXES+=("${PARAM_YEAR}_${AUTO_BPDAS}")
+                [ -n "$PARAM_BULAN_PAD" ] && AUTO_SUFFIXES+=("${PARAM_BULAN_PAD}_${AUTO_BPDAS}")
+                if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BULAN_PAD" ]; then
+                    AUTO_SUFFIXES+=("${PARAM_YEAR}_${PARAM_BULAN_PAD}_${AUTO_BPDAS}")
+                fi
+
+                # Init targets
+                for s in "${AUTO_SUFFIXES[@]}"; do
+                    target="$DATA_DIR/glmap_${s}.mbtiles"
+                    log_file="$DATA_DIR/.merged_${s}.log"
+                    [ ! -f "$log_file" ] && touch "$log_file"
+                    ensure_mbtiles "$target" "GL Map Combined ${s//_/ }"
+                done
+
+                # Merge file-file yang ada di DATA_DIR
+                MERGED_FOR_BPDAS=0
+                for fname in $AUTO_FILES_JSON; do
+                    mbtiles_file="$DATA_DIR/$fname"
+                    [ -f "$mbtiles_file" ] || { echo "  ⚠ Not in DATA_DIR: $fname"; continue; }
+                    ! is_valid_mbtiles "$mbtiles_file" && { echo "  ✗ Invalid: $fname"; continue; }
+
+                    tile_count=$(sqlite3 "$mbtiles_file" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+                    echo "  File: $fname ($tile_count tiles)"
+                    for s in "${AUTO_SUFFIXES[@]}"; do
+                        target="$DATA_DIR/glmap_${s}.mbtiles"
+                        log_file="$DATA_DIR/.merged_${s}.log"
+                        merge_into "$target" "$mbtiles_file" "$log_file"
+                    done
+                    MERGED_FOR_BPDAS=$((MERGED_FOR_BPDAS + 1))
+                done
+
+                echo "  → $MERGED_FOR_BPDAS file(s) processed for $AUTO_BPDAS"
+                for s in "${AUTO_SUFFIXES[@]}"; do
+                    target="$DATA_DIR/glmap_${s}.mbtiles"
+                    count=$(sqlite3 "$target" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+                    echo "  ✓ glmap_${s}.mbtiles → $count tiles"
+                done
+            done
+        fi
     fi
 fi
 
 # ─────────────────────────────────────────────
 # Step 5: Generate config.json
+# Scan semua glmap_*.mbtiles di disk (dinamis, tidak perlu daftar manual)
 # ─────────────────────────────────────────────
 log_info "=== Step 5: Generating Config ==="
 echo ""
 echo "=== Step 5: Generating Config ==="
 
 # Helper: append a data entry to temp config
-# $1 = key, $2 = mbtiles relative path, $3 = description (for echo)
-# $4 = "first" if first entry (no leading comma)
 append_data_entry() {
     local key="$1"
     local path="$2"
@@ -523,7 +659,7 @@ fi
 append_data_entry "glmap" "data/glmap.mbtiles" "glmap (drone global, zoom 16-22)" "$FIRST_DATA"
 FIRST_DATA=""
 
-# All existing per-year/bpdas glmap files — scan disk, not just current args
+# All existing per-filter glmap files — scan disk (picks up all combinations)
 for glmap_variant in "$DATA_DIR"/glmap_*.mbtiles; do
     [ -f "$glmap_variant" ] || continue
     basename_only=$(basename "$glmap_variant" .mbtiles)
@@ -608,15 +744,12 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Step 7: Database update
+# Step 7: Database update — update lat/lon/status untuk file yang baru dimerge
 # ─────────────────────────────────────────────
 log_info "=== Step 7: Updating PostgreSQL Database ==="
 echo ""
 echo "=== Step 7: Updating PostgreSQL Database ==="
 
-# DB BARU (host migrasi). Bisa di-override lewat env. Record drone
-# (geoportal.pmn_drone_imagery) ditulis backend ke DB baru 172.16.3.102,
-# jadi update lat/lon/status harus ke sini — bukan host lama 172.26.11.153.
 DBHOST="${DBHOST:-172.16.3.102}"
 DBUSER="${DBUSER:-app_db}"
 DBPASS="${DBPASS:-R00T_DB_M4ND4R4}"
@@ -723,8 +856,8 @@ EOF
             done
         fi
 
-        # Update argument files (year/bpdas)
-        if [ -n "$PARAM_YEAR" ] && [ "${#PARAM_FILES[@]}" -gt 0 ]; then
+        # Update argument files (per-filter)
+        if [ "${#TARGET_SUFFIXES[@]}" -gt 0 ] && [ "${#PARAM_FILES[@]}" -gt 0 ]; then
             for filename in "${PARAM_FILES[@]}"; do
                 mbtiles_file="$DATA_DIR/$filename"
                 [[ "$filename" == /* ]] && mbtiles_file="$filename"
@@ -778,35 +911,30 @@ echo "✓ glmap.mbtiles (Drone Global):"
 echo "  - Zoom: 16-22  |  Tiles: $drone_tiles"
 echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap/{z}/{x}/{y}.jpg"
 
-if [ -n "$PARAM_YEAR" ] && [ -n "$PARAM_BPDAS" ]; then
+if [ "${#TARGET_SUFFIXES[@]}" -gt 0 ]; then
     echo ""
-    year_tiles=$(sqlite3 "$GLMAP_YEAR"     "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-    bpdas_tiles=$(sqlite3 "$GLMAP_BPDAS"  "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-    yb_tiles=$(sqlite3 "$GLMAP_YEAR_BPDAS" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
-
-    echo "✓ glmap_${PARAM_YEAR}.mbtiles (GL Map Combined ${PARAM_YEAR}):"
-    echo "  - Tiles: $year_tiles"
-    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${PARAM_YEAR}/{z}/{x}/{y}.jpg"
-    echo ""
-    echo "✓ glmap_${PARAM_BPDAS}.mbtiles (GL Map Combined ${PARAM_BPDAS}):"
-    echo "  - Tiles: $bpdas_tiles"
-    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${PARAM_BPDAS}/{z}/{x}/{y}.jpg"
-    echo ""
-    echo "✓ glmap_${PARAM_YEAR}_${PARAM_BPDAS}.mbtiles (GL Map Combined ${PARAM_YEAR} ${PARAM_BPDAS}):"
-    echo "  - Tiles: $yb_tiles"
-    echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${PARAM_YEAR}_${PARAM_BPDAS}/{z}/{x}/{y}.jpg"
+    for s in "${TARGET_SUFFIXES[@]}"; do
+        target="$DATA_DIR/glmap_${s}.mbtiles"
+        count=$(sqlite3 "$target" "SELECT COUNT(*) FROM tiles;" 2>/dev/null || echo "0")
+        echo "✓ glmap_${s}.mbtiles:"
+        echo "  - Tiles: $count"
+        echo "  - URL: https://mandara.pdasrh.kehutanan.go.id/glserver/data/glmap_${s}/{z}/{x}/{y}.jpg"
+    done
 fi
 
 echo ""
 echo "📦 MERGE STATUS:"
 echo "✓ New files merged (global): ${#NEW_FILES_GLOBAL[@]}"
 echo "✓ Already merged (global):   $SKIPPED_COUNT"
-[ -n "$PARAM_YEAR" ] && echo "✓ Argument files (year/bpdas): ${#PARAM_FILES[@]}"
+[ "${#TARGET_SUFFIXES[@]}" -gt 0 ] && echo "✓ Targets generated:         ${#TARGET_SUFFIXES[@]}"
+[ "${#TARGET_SUFFIXES[@]}" -gt 0 ] && echo "✓ Argument files (filters):  ${#PARAM_FILES[@]}"
 echo "✓ Total datasets in config:  $TOTAL_DATASETS"
 echo ""
 echo "🎯 ARCHITECTURE:"
-echo "  Layer 1 (Base):    grid_layer - Grid overview (zoom 0-14)"
-echo "  Layer 2 (Overlay): glmap      - Drone imagery (zoom 16-22)"
-[ -n "$PARAM_YEAR" ] && echo "  Layer 3 (Subset):  glmap_${PARAM_YEAR}_${PARAM_BPDAS} - Drone ${PARAM_YEAR} ${PARAM_BPDAS} (zoom 16-22)"
+echo "  Layer 1 (Base):    grid_layer — Grid overview (zoom 0-14)"
+echo "  Layer 2 (Overlay): glmap      — Drone imagery global (zoom 16-22)"
+for s in "${TARGET_SUFFIXES[@]}"; do
+    echo "  Filter subset:     glmap_${s} (zoom 16-22)"
+done
 echo ""
 echo "🚀 Next run will only process new files!"

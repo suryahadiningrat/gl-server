@@ -20,23 +20,23 @@ set -e
 # =============================================================================
 
 # MinIO Configuration
-S3_HOST="${S3_HOST:-http://52.76.171.132:9005}"
-S3_BUCKET="${S3_BUCKET:-idpm}"
+S3_HOST="${S3_HOST:-http://172.16.2.174:9000}"
+S3_BUCKET="${S3_BUCKET:-idpm-bucket}"
 S3_PATH="${S3_PATH:-layers/drone/mbtiles}"
-S3_ACCESS_KEY="${S3_ACCESS_KEY:-eY7VQA55gjPQu1CGv540}"
-S3_SECRET_KEY="${S3_SECRET_KEY:-u6feeKC1s8ttqU1PLLILrfyqdv79UOvBkzpWhIIn}"
-S3_HOSTNAME="${S3_HOSTNAME:-https://api-minio.ptnaghayasha.com}"
+S3_ACCESS_KEY="${S3_ACCESS_KEY:-QJ4fvuK3AhlihqMLZxjx}"
+S3_SECRET_KEY="${S3_SECRET_KEY:-onRpTNfs5jpo8eMU8oLRbQv1Z5QBhbjO4Spb1PzU}"
+S3_HOSTNAME="${S3_HOSTNAME:-https://mandara.pdasrh.kehutanan.go.id/storage}"
 
 # Webhook Configuration
-WEBHOOK_URL="${WEBHOOK_URL:-https://api.ptnaghayasha.com/api/minio-webhook}"
+WEBHOOK_URL="${WEBHOOK_URL:-https://mandara.pdasrh.kehutanan.go.id/portal-api/api}"
 WEBHOOK_ENABLED="${WEBHOOK_ENABLED:-true}"
 
 # PostgreSQL Configuration
-DB_HOST="${DB_HOST:-52.74.112.75}"
+DB_HOST="${DB_HOST:-172.16.3.102}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-postgres}"
-DB_USER="${DB_USER:-pg}"
-DB_PASSWORD="${DB_PASSWORD:-~nagha2025yasha@~}"
+DB_USER="${DB_USER:-app_db}"
+DB_PASSWORD="${DB_PASSWORD:-R00T_DB_M4ND4R4}"
 DB_TABLE="geoportal.pmn_drone_imagery"
 
 # Default values
@@ -44,6 +44,8 @@ DEFAULT_STATUS="Dalam Proses"
 DEFAULT_OPERATOR=""
 DEFAULT_LOCATION=""
 DEFAULT_BPDAS=""
+DEFAULT_TAHUN=""
+DEFAULT_BULAN=""
 DRY_RUN=false
 
 # =============================================================================
@@ -64,6 +66,25 @@ log_error() {
 
 log_warn() {
     echo "[WARN] ⚠ $*" >&2
+}
+
+# Indonesian month name
+month_name_id() {
+    case "$1" in
+        1)  echo "Januari"   ;;
+        2)  echo "Februari"  ;;
+        3)  echo "Maret"     ;;
+        4)  echo "April"     ;;
+        5)  echo "Mei"       ;;
+        6)  echo "Juni"      ;;
+        7)  echo "Juli"      ;;
+        8)  echo "Agustus"   ;;
+        9)  echo "September" ;;
+        10) echo "Oktober"   ;;
+        11) echo "November"  ;;
+        12) echo "Desember"  ;;
+        *)  echo ""          ;;
+    esac
 }
 
 # Generate unique ID
@@ -207,21 +228,31 @@ generate_timestamp_prefix() {
 }
 
 # Trigger webhook notification (simulates MinIO event)
+# Args: $1=filename, $2=tahun, $3=bulan, $4=bpdas
 trigger_webhook() {
     local filename="$1"
-    
+    local tahun="$2"
+    local bulan="$3"
+    local bpdas="$4"
+
     if [ "$WEBHOOK_ENABLED" != "true" ]; then
         return 0
     fi
-    
+
     if [ "$DRY_RUN" = true ]; then
-        log_info "DRY RUN: Would trigger webhook for $filename"
+        log_info "DRY RUN: Would trigger webhook for $filename (tahun=$tahun bulan=$bulan bpdas=$bpdas)"
         return 0
     fi
-    
+
     log_info "Triggering webhook for: $filename"
-    
-    # Create MinIO-compatible webhook payload
+
+    # Bangun field tambahan secara kondisional
+    local extra_fields=""
+    [ -n "$bpdas" ]  && extra_fields="${extra_fields},\n        \"bpdas\": \"$bpdas\""
+    [ -n "$tahun" ]  && extra_fields="${extra_fields},\n        \"tahun\": \"$tahun\""
+    [ -n "$bulan" ]  && extra_fields="${extra_fields},\n        \"bulan\": \"$bulan\""
+
+    # Create MinIO-compatible webhook payload (extended dengan tahun/bulan/bpdas)
     local payload=$(cat <<EOF
 {
   "EventName": "s3:ObjectCreated:Put",
@@ -239,7 +270,7 @@ trigger_webhook() {
       "object": {
         "key": "$S3_PATH/$filename",
         "size": 0,
-        "contentType": "application/octet-stream"
+        "contentType": "application/octet-stream"$(printf "%b" "$extra_fields")
       }
     }
   }]
@@ -350,6 +381,52 @@ extract_coordinates() {
     echo "-0.469,117.172"
 }
 
+# Auto-detect BPDAS dari mbtiles:
+# 1. Cek metadata 'bpdas' di dalam file
+# 2. Jika tidak ada, ambil koordinat tengah → spatial query ke geoportal."WILAYAH_KERJA"
+detect_bpdas_from_mbtiles() {
+    local mbtiles_file="$1"
+
+    # Prioritas 1: bpdas langsung dari metadata mbtiles
+    local meta_bpdas
+    meta_bpdas=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='bpdas';" 2>/dev/null || echo "")
+    if [ -n "$meta_bpdas" ]; then
+        echo "$meta_bpdas" | tr '[:lower:]' '[:upper:]' | tr -d ' '
+        return 0
+    fi
+
+    # Prioritas 2: spatial lookup menggunakan koordinat tengah dari bounds
+    local coords
+    coords=$(extract_coordinates "$mbtiles_file")
+    local lat lon
+    lat=$(echo "$coords" | cut -d',' -f1)
+    lon=$(echo "$coords" | cut -d',' -f2)
+
+    # Jangan query kalau koordinat default (berarti file tidak punya bounds)
+    if [ "$lat" = "-0.469" ] && [ "$lon" = "117.172" ]; then
+        return 1
+    fi
+
+    if [ -n "$DB_PASSWORD" ]; then
+        export PGPASSWORD="$DB_PASSWORD"
+    fi
+
+    local result
+    result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -A -c \
+        "SELECT wil_kerja FROM geoportal.\"WILAYAH_KERJA\"
+         WHERE ST_Contains(ST_Transform(geom, 4326), ST_SetSRID(ST_MakePoint($lon, $lat), 4326))
+         LIMIT 1;" 2>/dev/null || echo "")
+
+    unset PGPASSWORD
+
+    if [ -n "$result" ]; then
+        echo "$result" | tr '[:lower:]' '[:upper:]' | tr -d ' '
+        return 0
+    fi
+
+    return 1
+}
+
 # Insert record to PostgreSQL with coordinates
 insert_to_database() {
     local id="$1"
@@ -362,16 +439,29 @@ insert_to_database() {
     local location="$8"
     local bpdas="$9"
     local mbtiles_file="${10}"  # Full path to mbtiles file for coordinate extraction
-    
+    local tahun="${11}"
+    local bulan="${12}"
+
     log_info "Inserting to database: $id"
-    
+
     # Extract coordinates from mbtiles
     local coords=$(extract_coordinates "$mbtiles_file")
     local latitude=$(echo "$coords" | cut -d',' -f1)
     local longitude=$(echo "$coords" | cut -d',' -f2)
-    
+
     log_info "  Coordinates: lat=$latitude, lon=$longitude"
-    
+
+    # Build captured_at and captured_display from tahun/bulan if both are provided
+    local captured_at_sql="NULL"
+    local captured_display_sql="NULL"
+    if [ -n "$tahun" ] && [ -n "$bulan" ]; then
+        local bulan_padded=$(printf "%02d" "$bulan")
+        local bulan_name=$(month_name_id "$bulan")
+        captured_at_sql="'${tahun}-${bulan_padded}-01T00:00:00+07:00'"
+        captured_display_sql="'1 ${bulan_name} ${tahun}'"
+        log_info "  Captured: 1 ${bulan_name} ${tahun}"
+    fi
+
     if [ "$DRY_RUN" = true ]; then
         log_warn "DRY RUN: Would insert record to database"
         log_info "  ID: $id"
@@ -380,10 +470,12 @@ insert_to_database() {
         log_info "  Size: $file_size_label"
         log_info "  Storage: $storage_path"
         log_info "  Status: $status"
+        log_info "  Tahun: ${tahun:-<not set>}"
+        log_info "  Bulan: ${bulan:-<not set>}"
         log_info "  Coordinates: lat=$latitude, lon=$longitude"
         return 0
     fi
-    
+
     # Prepare SQL with coordinates
     local sql="
         INSERT INTO $DB_TABLE (
@@ -410,8 +502,8 @@ insert_to_database() {
             '$id',
             '$title',
             NULL,
-            NULL,
-            NULL,
+            $captured_at_sql,
+            $captured_display_sql,
             $([ -n "$location" ] && echo "'$location'" || echo "NULL"),
             $([ -n "$bpdas" ] && echo "'$bpdas'" || echo "NULL"),
             'MBTILES',
@@ -461,6 +553,8 @@ process_file() {
     local operator="$4"
     local location="$5"
     local bpdas="$6"
+    local tahun="$7"
+    local bulan="$8"
     
     local original_filename=$(basename "$file")
     
@@ -474,7 +568,19 @@ process_file() {
         log_error "Skipping invalid file: $original_filename"
         return 1
     fi
-    
+
+    # Auto-detect BPDAS dari koordinat mbtiles jika tidak di-set
+    local resolved_bpdas="$bpdas"
+    if [ -z "$resolved_bpdas" ]; then
+        log_info "BPDAS tidak di-set, mendeteksi otomatis dari koordinat..."
+        resolved_bpdas=$(detect_bpdas_from_mbtiles "$file") || resolved_bpdas=""
+        if [ -n "$resolved_bpdas" ]; then
+            log_info "  Auto-detected BPDAS: $resolved_bpdas"
+        else
+            log_warn "  Tidak dapat mendeteksi BPDAS untuk $original_filename — akan di-upload tanpa BPDAS"
+        fi
+    fi
+
     # Generate timestamp prefix and new filename
     local timestamp_prefix=$(generate_timestamp_prefix)
     local filename="${timestamp_prefix}_${original_filename}"
@@ -514,7 +620,7 @@ process_file() {
     
     # Step 1: Insert to database FIRST (with coordinates from mbtiles)
     log_info "Step 1/3: Inserting to database with coordinates..."
-    if ! insert_to_database "$id" "$title" "$original_filename" "$file_size_label" "$storage_path" "$status" "$operator" "$location" "$bpdas" "$file"; then
+    if ! insert_to_database "$id" "$title" "$original_filename" "$file_size_label" "$storage_path" "$status" "$operator" "$location" "$resolved_bpdas" "$file" "$tahun" "$bulan"; then
         log_error "Database insert failed for: $filename"
         return 1
     fi
@@ -545,7 +651,7 @@ process_file() {
     
     # Step 3: Trigger webhook after successful upload
     log_info "Step 3/3: Triggering webhook..."
-    trigger_webhook "$filename"
+    trigger_webhook "$filename" "$tahun" "$bulan" "$resolved_bpdas"
     
     log_success "Completed: $filename"
     return 0
@@ -575,7 +681,14 @@ Options:
   --location <location>   Set location label for all uploads
   
   --bpdas <code>          Set BPDAS code for all uploads (will be converted to uppercase)
-  
+
+  --tahun <year>          Set acquisition year for all uploads (sets captured_at)
+                          Example: 2026
+
+  --bulan <month>         Set acquisition month (1-12) for all uploads (sets captured_at)
+                          Must be used together with --tahun
+                          Example: 6 (for Juni)
+
   --dry-run              Show what would be done without actually uploading or inserting
   
   --help                 Show this help message
@@ -604,6 +717,9 @@ Examples:
   # With all metadata
   $0 /path/to/mbtiles --status "Aktif" --operator "Team A" --location "Kalimantan" --bpdas "BWS01"
 
+  # With acquisition date (tahun + bulan)
+  $0 /path/to/mbtiles --tahun 2026 --bulan 6 --bpdas "KRUENGACEH"
+
   # Dry run to test
   $0 /path/to/mbtiles --dry-run
 
@@ -617,6 +733,8 @@ STATUS="$DEFAULT_STATUS"
 OPERATOR="$DEFAULT_OPERATOR"
 LOCATION="$DEFAULT_LOCATION"
 BPDAS="$DEFAULT_BPDAS"
+TAHUN="$DEFAULT_TAHUN"
+BULAN="$DEFAULT_BULAN"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -637,6 +755,14 @@ while [ $# -gt 0 ]; do
             ;;
         --bpdas)
             BPDAS=$(echo "$2" | tr '[:lower:]' '[:upper:]')
+            shift 2
+            ;;
+        --tahun)
+            TAHUN="$2"
+            shift 2
+            ;;
+        --bulan)
+            BULAN="$2"
             shift 2
             ;;
         --dry-run)
@@ -688,6 +814,8 @@ echo "  Status: $STATUS"
 echo "  Operator: ${OPERATOR:-<not set>}"
 echo "  Location: ${LOCATION:-<not set>}"
 echo "  BPDAS: ${BPDAS:-<not set>}"
+echo "  Tahun: ${TAHUN:-<not set>}"
+echo "  Bulan: ${BULAN:-<not set>}"
 echo "  Dry Run: $DRY_RUN"
 echo ""
 echo "MinIO:"
@@ -713,10 +841,13 @@ MC_ALIAS=$(configure_minio)
 
 # Find all MBTiles files
 log_info "Scanning for MBTiles files in: $SOURCE_FOLDER"
-MBTILES_FILES=$(find "$SOURCE_FOLDER" -maxdepth 1 -type f -name "*.mbtiles" | sort)
-FILE_COUNT=$(echo "$MBTILES_FILES" | grep -c .)
+MBTILES_FILES_ARRAY=()
+while IFS= read -r line; do
+    MBTILES_FILES_ARRAY+=("$line")
+done < <(find "$SOURCE_FOLDER" -maxdepth 1 -type f -name "*.mbtiles" | sort)
+FILE_COUNT=${#MBTILES_FILES_ARRAY[@]}
 
-if [ -z "$MBTILES_FILES" ] || [ "$FILE_COUNT" -eq 0 ]; then
+if [ "$FILE_COUNT" -eq 0 ]; then
     log_error "No MBTiles files found in: $SOURCE_FOLDER"
     exit 1
 fi
@@ -729,8 +860,8 @@ SUCCESS_COUNT=0
 FAILED_COUNT=0
 SKIPPED_COUNT=0
 
-for file in $MBTILES_FILES; do
-    process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" "$BPDAS"
+for file in "${MBTILES_FILES_ARRAY[@]}"; do
+    process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" "$BPDAS" "$TAHUN" "$BULAN"
     exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
