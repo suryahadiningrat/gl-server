@@ -204,18 +204,41 @@ check_minio_exists() {
 # Check if file exists in database by storage path
 check_database_exists() {
     local storage_path="$1"
-    
+
     local sql="SELECT id FROM $DB_TABLE WHERE storage_path = '$storage_path' LIMIT 1;"
-    
+
     if [ -n "$DB_PASSWORD" ]; then
         export PGPASSWORD="$DB_PASSWORD"
     fi
-    
+
     local result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "$sql" 2>&1)
     local exit_code=$?
-    
+
     unset PGPASSWORD
-    
+
+    if [ $exit_code -eq 0 ] && [ -n "$(echo "$result" | tr -d '[:space:]')" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Check if file exists in database by original filename (ignores timestamp prefix)
+# Used to skip re-uploads across multiple script runs
+check_database_exists_by_original() {
+    local original_filename="$1"
+
+    local sql="SELECT id FROM $DB_TABLE WHERE storage_path LIKE '%_${original_filename}' LIMIT 1;"
+
+    if [ -n "$DB_PASSWORD" ]; then
+        export PGPASSWORD="$DB_PASSWORD"
+    fi
+
+    local result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "$sql" 2>&1)
+    local exit_code=$?
+
+    unset PGPASSWORD
+
     if [ $exit_code -eq 0 ] && [ -n "$(echo "$result" | tr -d '[:space:]')" ]; then
         return 0
     else
@@ -571,6 +594,13 @@ process_file() {
         return 1
     fi
 
+    # Early-exit: cek apakah file ini sudah pernah diupload (run sebelumnya)
+    # Cek berdasarkan nama file asli (tanpa timestamp prefix) agar tidak upload ulang
+    if check_database_exists_by_original "$original_filename"; then
+        log_warn "Already uploaded in a previous run: $original_filename — skipping"
+        return 2
+    fi
+
     # Auto-detect BPDAS dari koordinat mbtiles jika tidak di-set
     local resolved_bpdas="$bpdas"
     if [ -z "$resolved_bpdas" ]; then
@@ -863,8 +893,7 @@ FAILED_COUNT=0
 SKIPPED_COUNT=0
 
 for file in "${MBTILES_FILES_ARRAY[@]}"; do
-    process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" "$BPDAS" "$TAHUN" "$BULAN"
-    exit_code=$?
+    process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" "$BPDAS" "$TAHUN" "$BULAN" && exit_code=0 || exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))

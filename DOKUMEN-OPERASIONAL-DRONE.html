@@ -1,0 +1,1195 @@
+<title>MANDARA — Dokumen Operasional Fitur Drone</title>
+<style>
+  /* ─── Reset & Base ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Page wrapper ─── */
+  .page {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 48px 60px;
+  }
+
+  /* ─── Cover ─── */
+  .cover {
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-bottom: 60px;
+    border-bottom: 2px solid #1e3a5f;
+    margin-bottom: 56px;
+  }
+
+  .cover-logo {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #1e3a5f;
+    text-transform: uppercase;
+    margin-bottom: 80px;
+  }
+
+  .cover h1 {
+    font-size: 30px;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .cover-subtitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1e3a5f;
+    margin-bottom: 48px;
+  }
+
+  .cover-meta-block { display: flex; flex-direction: column; gap: 4px; }
+
+  .cover-meta-row {
+    font-size: 13px;
+    color: #1a1a1a;
+  }
+
+  .cover-meta-row strong {
+    display: inline-block;
+    width: 120px;
+    font-weight: 700;
+  }
+
+  /* ─── Section headings ─── */
+  h2 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #1a1a1a;
+    margin: 40px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid #d1d5db;
+  }
+
+  h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e3a5f;
+    margin: 24px 0 10px;
+  }
+
+  p {
+    color: #374151;
+    margin-bottom: 12px;
+  }
+
+  /* ─── Tables ─── */
+  .tbl-wrap { overflow-x: auto; margin: 14px 0 20px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead tr th {
+    background: #1e3a5f;
+    color: #ffffff;
+    font-weight: 700;
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid #1e3a5f;
+    font-size: 12px;
+  }
+
+  tbody tr td {
+    padding: 9px 14px;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    vertical-align: top;
+  }
+
+  tbody tr:nth-child(even) td { background: #f0f4f8; }
+  tbody tr:nth-child(odd)  td { background: #ffffff; }
+
+  td code, td strong { font-weight: 600; color: #1a1a1a; }
+
+  td code {
+    font-family: 'Cascadia Code','Consolas','Courier New',monospace;
+    font-size: 12px;
+    background: #f0f4f8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 400;
+    color: #1e3a5f;
+  }
+
+  /* ─── Ordered / unordered list ─── */
+  ol, ul {
+    padding-left: 22px;
+    margin: 10px 0 14px;
+    color: #374151;
+  }
+
+  li { margin-bottom: 6px; font-size: 14px; }
+  li strong { color: #1a1a1a; }
+  li code {
+    font-family: 'Cascadia Code','Consolas','Courier New',monospace;
+    font-size: 12px;
+    background: #f0f4f8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #1e3a5f;
+  }
+
+  /* ─── Info / warning box ─── */
+  .note {
+    border-left: 4px solid #1e3a5f;
+    background: #eff6ff;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 13px;
+    color: #374151;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .note strong { color: #1e3a5f; }
+
+  .warn {
+    border-left: 4px solid #d97706;
+    background: #fffbeb;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 13px;
+    color: #374151;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .warn strong { color: #d97706; }
+
+  /* ─── Code block ─── */
+  pre {
+    background: #f6f8fa;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    padding: 16px 18px;
+    font-family: 'Cascadia Code','Consolas','Courier New',monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 12px 0 18px;
+    white-space: pre;
+    color: #1a1a1a;
+  }
+
+  /* ─── Script lampiran ─── */
+  .script-block {
+    background: #f6f8fa;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    margin: 12px 0 20px;
+    overflow: hidden;
+  }
+
+  .script-header {
+    background: #e5e7eb;
+    padding: 8px 16px;
+    font-family: 'Cascadia Code','Consolas','Courier New',monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #374151;
+    border-bottom: 1px solid #d1d5db;
+  }
+
+  .script-body {
+    padding: 16px 18px;
+    font-family: 'Cascadia Code','Consolas','Courier New',monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    overflow-x: auto;
+    white-space: pre;
+    color: #1a1a1a;
+    max-height: none;
+  }
+
+  /* ─── Divider ─── */
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 32px 0; }
+
+  /* ─── Print ─── */
+  @media print {
+    body { font-size: 12px; }
+    .page { padding: 0; max-width: 100%; }
+    .cover { page-break-after: always; min-height: 0; }
+    h2 { page-break-before: auto; }
+    .script-block { page-break-inside: avoid; }
+    pre { page-break-inside: avoid; }
+    .lampiran { page-break-before: always; }
+    a { text-decoration: none; color: inherit; }
+  }
+
+  @media (max-width: 680px) {
+    .page { padding: 24px 20px; }
+    .cover h1 { font-size: 22px; }
+  }
+</style>
+
+<div class="page">
+
+  <!-- ══════════════════════ COVER ══════════════════════ -->
+  <div class="cover">
+    <div class="cover-logo">Sistem Mandara — KLHK</div>
+    <div>
+      <div class="cover-subtitle">Fitur Drone — Citra Udara</div>
+      <h1>DOKUMEN OPERASIONAL &amp;<br>PANDUAN UPLOAD DATA</h1>
+    </div>
+    <div class="cover-meta-block">
+      <div class="cover-meta-row"><strong>Project</strong>Mandara / IDPM</div>
+      <div class="cover-meta-row"><strong>Environment</strong>Production</div>
+      <div class="cover-meta-row"><strong>Domain</strong>mandara.pdasrh.kehutanan.go.id</div>
+      <div class="cover-meta-row"><strong>Dokumen</strong>Panduan Operasional Fitur Citra Drone</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ 1. TUJUAN ══════════════════════ -->
+  <h2>1. Tujuan Dokumen</h2>
+  <p>Dokumen ini disusun sebagai panduan operasional untuk mengelola fitur <strong>Citra Drone</strong> pada Sistem Mandara. Panduan ini mencakup langkah-langkah akses VPN, akses server, penanganan gangguan (<em>troubleshooting</em>), dan cara mengunggah data citra drone secara massal.</p>
+  <p>Dokumen ini ditujukan kepada tim teknis (IT Staff) Kementerian Lingkungan Hidup dan Kehutanan yang bertanggung jawab atas operasional dan pemeliharaan sistem.</p>
+
+  <!-- ══════════════════════ 2. RUANG LINGKUP ══════════════════════ -->
+  <h2>2. Ruang Lingkup</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Area</th><th>Keterangan</th></tr></thead>
+      <tbody>
+        <tr><td>Akses SSH Server</td><td>Cara masuk ke server produksi menggunakan terminal (VPN wajib aktif terlebih dahulu)</td></tr>
+        <tr><td>Troubleshooting</td><td>Menangani gangguan pada layanan tile citra drone (restart container, regenerasi konfigurasi)</td></tr>
+        <tr><td>Bulk Upload MBTiles</td><td>Cara mengunggah banyak file citra drone (.mbtiles) sekaligus ke sistem, baik dari Windows maupun Linux</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════ 3. INFRASTRUKTUR ══════════════════════ -->
+  <h2>3. Ringkasan Infrastruktur Production</h2>
+  <p>Sistem Mandara menggunakan 3 server utama. Fitur Citra Drone dikelola dari <strong>Server Frontend</strong>.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Server</th><th>IP Address</th><th>Fungsi Utama</th><th>User Login</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Server Frontend</strong></td><td>172.16.2.174</td><td>Frontend, API, MinIO (storage), TileServer, Nginx</td><td>femandara</td></tr>
+        <tr><td>Server App</td><td>172.16.3.148</td><td>ODK Central (pengumpulan data lapangan)</td><td>appmandara</td></tr>
+        <tr><td>Server Database</td><td>172.16.3.102</td><td>PostgreSQL / PostGIS Database</td><td>dbmandara</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Container yang terkait langsung dengan fitur Citra Drone:</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Nama Container</th><th>Fungsi</th><th>Port</th><th>Status Normal</th></tr></thead>
+      <tbody>
+        <tr><td><code>tileserver-zurich</code></td><td>Menyajikan tile peta citra drone (MBTiles)</td><td>8001</td><td>Up / Healthy</td></tr>
+        <tr><td><code>minio</code></td><td>Penyimpanan file MBTiles</td><td>9000–9001</td><td>Up</td></tr>
+        <tr><td><code>api-idpm-api-1</code></td><td>API backend, termasuk endpoint upload drone</td><td>3001</td><td>Up / Healthy</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════ 4. SSH ══════════════════════ -->
+  <h2>4. Akses SSH ke Server</h2>
+  <div class="warn">
+    <strong>Sebelum memulai:</strong> Pastikan koneksi VPN ke jaringan internal Pusdatin KLHK sudah aktif. Server tidak dapat diakses tanpa VPN.
+  </div>
+  <p>Setelah VPN aktif, gunakan SSH untuk masuk ke server produksi. Operasional fitur Citra Drone dilakukan dari <strong>Server Frontend (172.16.2.174)</strong>.</p>
+
+  <h3>4.1 Kredensial Server Frontend</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Item</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td><strong>IP Address</strong></td><td>172.16.2.174</td></tr>
+        <tr><td><strong>Username</strong></td><td>femandara</td></tr>
+        <tr><td><strong>Password</strong></td><td>___________________________________</td></tr>
+        <tr><td><strong>Folder Utama Service</strong></td><td>/home/femandara/docker</td></tr>
+        <tr><td><strong>Folder GL Server / TileServer</strong></td><td>/home/femandara/docker/gl-server</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4.2 Cara Login SSH</h3>
+  <p>Buka terminal (Linux/macOS) atau <strong>Git Bash</strong> (Windows), kemudian jalankan:</p>
+
+  <pre>ssh femandara@172.16.2.174</pre>
+
+  <p>Masukkan password saat diminta. Setelah berhasil masuk, pindah ke mode root untuk menjalankan perintah Docker:</p>
+
+  <pre>sudo su</pre>
+
+  <h3>4.3 Verifikasi Container Aktif</h3>
+  <p>Jalankan perintah berikut untuk memastikan container berjalan normal:</p>
+
+  <pre>docker ps</pre>
+
+  <p>Pastikan container <code>tileserver-zurich</code>, <code>minio</code>, dan <code>api-idpm-api-1</code> menampilkan status <strong>Up</strong>.</p>
+
+  <!-- ══════════════════════ 6. TROUBLESHOOTING ══════════════════════ -->
+  <h2>5. Troubleshooting Fitur Citra Drone</h2>
+  <p>Apabila peta citra drone tidak tampil atau data tidak diperbarui, lakukan langkah-langkah berikut dari dalam server (setelah login SSH).</p>
+
+  <h3>5.1 Restart Container TileServer</h3>
+  <p>Container <code>tileserver-zurich</code> bertanggung jawab menyajikan tile peta citra drone. Apabila peta tidak muncul atau tileserver tidak merespons, lakukan restart:</p>
+
+  <ol>
+    <li>Masuk ke server via SSH (lihat Bagian 5).</li>
+    <li>Pindah ke folder gl-server:</li>
+  </ol>
+
+  <pre>cd /home/femandara/docker/gl-server</pre>
+
+  <ol start="3">
+    <li>Restart container tileserver:</li>
+  </ol>
+
+  <pre>docker compose restart tileserver-zurich</pre>
+
+  <ol start="4">
+    <li>Tunggu beberapa detik, lalu verifikasi container kembali aktif:</li>
+  </ol>
+
+  <pre>docker ps | grep tileserver</pre>
+
+  <ol start="5">
+    <li>Apabila container tidak muncul atau statusnya bukan <strong>Up</strong>, jalankan perintah berikut untuk melihat log error:</li>
+  </ol>
+
+  <pre>docker logs --tail=50 tileserver-zurich</pre>
+
+  <div class="note">
+    <strong>Catatan:</strong> Setelah restart, tileserver membutuhkan waktu sekitar 10–30 detik untuk siap melayani permintaan tile. Muat ulang halaman peta di browser setelah container aktif.
+  </div>
+
+  <h3>5.2 Menjalankan Script generate-config.sh</h3>
+  <p>Script <code>generate-config.sh</code> digunakan untuk memperbarui file konfigurasi tileserver (<code>config.json</code>) apabila ada data MBTiles baru yang ditambahkan secara manual ke server, atau apabila konfigurasi tileserver perlu diregenerasi dari awal.</p>
+
+  <div class="warn">
+    <strong>Perhatian:</strong> Script ini akan menimpa file <code>config.json</code> yang ada. Gunakan hanya apabila diperlukan, misalnya setelah penambahan file MBTiles baru secara manual atau setelah terjadi kerusakan pada konfigurasi.
+  </div>
+
+  <ol>
+    <li>Masuk ke server via SSH dan berpindah ke folder gl-server:</li>
+  </ol>
+
+  <pre>cd /home/femandara/docker/gl-server</pre>
+
+  <ol start="2">
+    <li>Jalankan script generate-config:</li>
+  </ol>
+
+  <pre>bash generate-config.sh</pre>
+
+  <p>Atau apabila perlu melakukan rebuild penuh (memproses semua file dari awal):</p>
+
+  <pre>FORCE_REBUILD=true bash generate-config.sh</pre>
+
+  <ol start="3">
+    <li>Setelah script selesai, restart tileserver agar konfigurasi baru diterapkan:</li>
+  </ol>
+
+  <pre>docker compose restart tileserver-zurich</pre>
+
+  <ol start="4">
+    <li>Verifikasi konfigurasi berhasil diperbarui:</li>
+  </ol>
+
+  <pre>cat config.json | python3 -m json.tool | grep -c "sources"</pre>
+
+  <p>Angka yang muncul menunjukkan jumlah dataset yang terdaftar dalam konfigurasi tileserver.</p>
+
+  <!-- ══════════════════════ 7. BULK UPLOAD ══════════════════════ -->
+  <h2>6. Bulk Upload Citra Drone (MBTiles)</h2>
+  <p>Script <code>bulk-upload-mbtiles.sh</code> digunakan untuk mengunggah banyak file citra drone (<code>.mbtiles</code>) sekaligus ke sistem. Script secara otomatis:</p>
+  <ul>
+    <li>Mengunggah setiap file ke penyimpanan (MinIO)</li>
+    <li>Mendaftarkan metadata ke database</li>
+    <li>Memperbarui konfigurasi tileserver</li>
+    <li>Melewati file yang sudah pernah diunggah sebelumnya (tidak upload ulang)</li>
+  </ul>
+
+  <h3>6.1 Prasyarat</h3>
+  <p>Pastikan perangkat lunak berikut sudah terinstal sebelum menjalankan script:</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Dependensi</th><th>Fungsi</th><th>Instalasi (Windows)</th><th>Instalasi (Linux/Mac)</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Git Bash</strong></td>
+          <td>Terminal Bash untuk menjalankan script di Windows</td>
+          <td>Unduh dari git-scm.com, instal dengan opsi default</td>
+          <td>Sudah tersedia (gunakan Terminal biasa)</td>
+        </tr>
+        <tr>
+          <td><strong>mc (MinIO Client)</strong></td>
+          <td>Upload file ke MinIO storage</td>
+          <td>Unduh <code>mc.exe</code> dari min.io, letakkan di folder yang ada di PATH</td>
+          <td><code>brew install minio/stable/mc</code></td>
+        </tr>
+        <tr>
+          <td><strong>psql</strong></td>
+          <td>Koneksi ke database PostgreSQL</td>
+          <td>Instal PostgreSQL dari postgresql.org (sudah termasuk psql)</td>
+          <td><code>sudo apt install postgresql-client</code></td>
+        </tr>
+        <tr>
+          <td><strong>sqlite3</strong></td>
+          <td>Validasi file MBTiles</td>
+          <td>Unduh dari sqlite.org dan tambahkan ke PATH</td>
+          <td>Biasanya sudah tersedia, atau <code>apt install sqlite3</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <strong>Catatan Windows:</strong> Script harus dijalankan melalui <strong>Git Bash</strong>, bukan Command Prompt atau PowerShell biasa. Setelah instal Git Bash, klik kanan di folder tempat script berada, pilih <strong>"Git Bash Here"</strong>.
+  </div>
+
+  <h3>6.2 Cara Menjalankan di Windows (Git Bash)</h3>
+  <ol>
+    <li>Pastikan semua prasyarat sudah terinstal (lihat 7.1).</li>
+    <li>Salin script <code>bulk-upload-mbtiles.sh</code> ke komputer lokal (lihat Lampiran A).</li>
+    <li>Buka folder tempat script berada, klik kanan, pilih <strong>Git Bash Here</strong>.</li>
+    <li>Beri izin eksekusi pada script:</li>
+  </ol>
+
+  <pre>chmod +x bulk-upload-mbtiles.sh</pre>
+
+  <ol start="5">
+    <li>Jalankan script dengan perintah berikut (sesuaikan path folder dan parameter):</li>
+  </ol>
+
+  <pre>./bulk-upload-mbtiles.sh "C:/Users/NamaAnda/Documents/Citra Drone/" \
+  --tahun 2026 --bulan 6 --status "Aktif" 2&gt;&amp;1 | tee logs.log</pre>
+
+  <div class="note">
+    <strong>Catatan:</strong> Apabila path folder mengandung spasi, pastikan diapit tanda kutip ganda (<code>"</code>). Perintah <code>tee logs.log</code> akan menyimpan seluruh output ke file <code>logs.log</code> di folder yang sama.
+  </div>
+
+  <h3>6.3 Cara Menjalankan di Linux / Dari Server</h3>
+  <ol>
+    <li>Login ke server via SSH (lihat Bagian 5).</li>
+    <li>Pindah ke folder gl-server:</li>
+  </ol>
+
+  <pre>cd /home/femandara/docker/gl-server</pre>
+
+  <ol start="3">
+    <li>Pastikan script executable:</li>
+  </ol>
+
+  <pre>chmod +x bulk-upload-mbtiles.sh</pre>
+
+  <ol start="4">
+    <li>Jalankan script:</li>
+  </ol>
+
+  <pre>./bulk-upload-mbtiles.sh "/path/ke/folder/mbtiles/" \
+  --tahun 2026 --bulan 6 --status "Aktif" 2&gt;&amp;1 | tee logs.log</pre>
+
+  <h3>6.4 Penjelasan Parameter</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Parameter</th><th>Wajib</th><th>Contoh</th><th>Keterangan</th></tr></thead>
+      <tbody>
+        <tr><td><code>&lt;folder&gt;</code></td><td>Ya</td><td><code>"C:/Citra Drone/"</code></td><td>Path ke folder berisi file .mbtiles. Gunakan tanda kutip apabila ada spasi.</td></tr>
+        <tr><td><code>--tahun</code></td><td>Dianjurkan</td><td><code>--tahun 2026</code></td><td>Tahun akuisisi citra. Digunakan untuk filter tampilan pada peta.</td></tr>
+        <tr><td><code>--bulan</code></td><td>Dianjurkan</td><td><code>--bulan 6</code></td><td>Bulan akuisisi (angka 1–12). Harus digunakan bersamaan dengan <code>--tahun</code>.</td></tr>
+        <tr><td><code>--bpdas</code></td><td>Opsional</td><td><code>--bpdas BPDASMAHAKAMBERAU</code></td><td>Kode BPDAS. Apabila tidak diisi, sistem akan mendeteksi otomatis dari koordinat file.</td></tr>
+        <tr><td><code>--status</code></td><td>Opsional</td><td><code>--status "Aktif"</code></td><td>Status data. Pilihan: <em>Aktif, Perlu Review, Arsip, Dalam Proses, Butuh Perbaikan</em>. Default: <em>Dalam Proses</em>.</td></tr>
+        <tr><td><code>--operator</code></td><td>Opsional</td><td><code>--operator "Tim Survey"</code></td><td>Nama operator atau tim yang mengunggah data.</td></tr>
+        <tr><td><code>--dry-run</code></td><td>Opsional</td><td><code>--dry-run</code></td><td>Simulasi tanpa upload sungguhan. Berguna untuk mengecek berapa file yang akan diproses.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.5 Contoh Perintah</h3>
+
+  <p><strong>Upload biasa (tahun + bulan):</strong></p>
+  <pre>./bulk-upload-mbtiles.sh "/Data/Citra Drone/Juni 2026/" \
+  --tahun 2026 --bulan 6 --status "Aktif" 2&gt;&amp;1 | tee logs.log</pre>
+
+  <p><strong>Upload dengan BPDAS spesifik:</strong></p>
+  <pre>./bulk-upload-mbtiles.sh "/Data/mbtiles/" \
+  --tahun 2026 --bulan 6 --bpdas "BPDASMAHAKAMBERAU" \
+  --status "Aktif" --operator "Tim KLHK" 2&gt;&amp;1 | tee logs.log</pre>
+
+  <p><strong>Dry-run (cek tanpa upload):</strong></p>
+  <pre>./bulk-upload-mbtiles.sh "/Data/mbtiles/" --tahun 2026 --bulan 6 --dry-run</pre>
+
+  <p><strong>Melihat ringkasan error dari log:</strong></p>
+  <pre>grep "[ERROR]" logs.log</pre>
+
+  <h3>6.6 Output Script</h3>
+  <p>Saat berjalan, script menampilkan informasi proses untuk setiap file. Di akhir eksekusi, ditampilkan ringkasan hasil:</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Status</th><th>Keterangan</th></tr></thead>
+      <tbody>
+        <tr><td><strong>✓ Success</strong></td><td>File berhasil diunggah dan terdaftar di sistem</td></tr>
+        <tr><td>⊙ Skipped</td><td>File dilewati karena sudah pernah diunggah sebelumnya</td></tr>
+        <tr><td>✗ Failed</td><td>File gagal diproses — periksa log untuk detail error</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr>
+
+  <!-- ══════════════════════ LAMPIRAN A ══════════════════════ -->
+  <div class="lampiran">
+    <h2>Lampiran A — Script: bulk-upload-mbtiles.sh</h2>
+    <p>Salin seluruh isi script di bawah ini ke dalam file baru bernama <code>bulk-upload-mbtiles.sh</code>, kemudian jalankan sesuai panduan pada Bagian 7.</p>
+
+    <div class="warn">
+      <strong>Sebelum menjalankan:</strong> Sesuaikan nilai konfigurasi pada bagian <em>Configuration</em> di awal script (S3_HOST, S3_ACCESS_KEY, S3_SECRET_KEY, DB_HOST, DB_PASSWORD) dengan kredensial yang diberikan oleh administrator sistem.
+    </div>
+
+    <div class="script-block">
+      <div class="script-header">bulk-upload-mbtiles.sh</div>
+      <div class="script-body">#!/bin/bash
+
+# Bulk Upload MBTiles to MinIO and Insert to PostgreSQL
+# Usage: ./bulk-upload-mbtiles.sh &lt;source_folder&gt; [options]
+#
+# Options:
+#   --status &lt;status&gt;       Set status (default: "Dalam Proses")
+#   --operator &lt;name&gt;       Set operator name
+#   --location &lt;location&gt;   Set location label
+#   --bpdas &lt;code&gt;          Set BPDAS code
+#   --tahun &lt;year&gt;          Set acquisition year
+#   --bulan &lt;month&gt;         Set acquisition month (1-12)
+#   --dry-run               Show what would be done without executing
+#
+# Jalankan di Git Bash (Windows) atau Terminal (Linux/macOS)
+
+set -e
+
+# =============================================================================
+# Configuration — Sesuaikan dengan kredensial sistem
+# =============================================================================
+
+# MinIO Configuration
+S3_HOST="${S3_HOST:-http://172.16.2.174:9000}"
+S3_BUCKET="${S3_BUCKET:-idpm-bucket}"
+S3_PATH="${S3_PATH:-layers/drone/mbtiles}"
+S3_ACCESS_KEY="${S3_ACCESS_KEY:-}"
+S3_SECRET_KEY="${S3_SECRET_KEY:-}"
+S3_HOSTNAME="${S3_HOSTNAME:-https://mandara.pdasrh.kehutanan.go.id/storage}"
+
+# Webhook Configuration
+WEBHOOK_URL="${WEBHOOK_URL:-https://mandara.pdasrh.kehutanan.go.id/portal-api/api/minio-webhook}"
+WEBHOOK_ENABLED="${WEBHOOK_ENABLED:-true}"
+WEBHOOK_SECRET="${WEBHOOK_SECRET:-mandara-webhook-2026}"
+
+# PostgreSQL Configuration
+DB_HOST="${DB_HOST:-172.16.3.102}"
+DB_PORT="${DB_PORT:-5432}"
+DB_NAME="${DB_NAME:-postgres}"
+DB_USER="${DB_USER:-app_db}"
+DB_PASSWORD="${DB_PASSWORD:-}"
+DB_TABLE="geoportal.pmn_drone_imagery"
+
+# Default values
+DEFAULT_STATUS="Dalam Proses"
+DEFAULT_OPERATOR=""
+DEFAULT_LOCATION=""
+DEFAULT_BPDAS=""
+DEFAULT_TAHUN=""
+DEFAULT_BULAN=""
+DRY_RUN=false
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+log_info()    { echo "[INFO] $*" &gt;&amp;2; }
+log_success() { echo "[SUCCESS] ✓ $*" &gt;&amp;2; }
+log_error()   { echo "[ERROR] ✗ $*" &gt;&amp;2; }
+log_warn()    { echo "[WARN] ⚠ $*" &gt;&amp;2; }
+
+month_name_id() {
+    case "$1" in
+        1)  echo "Januari"   ;; 2)  echo "Februari"  ;; 3)  echo "Maret"     ;;
+        4)  echo "April"     ;; 5)  echo "Mei"        ;; 6)  echo "Juni"      ;;
+        7)  echo "Juli"      ;; 8)  echo "Agustus"    ;; 9)  echo "September" ;;
+        10) echo "Oktober"   ;; 11) echo "November"   ;; 12) echo "Desember"  ;;
+        *)  echo ""          ;;
+    esac
+}
+
+generate_id() {
+    local random=$(openssl rand -hex 4 | tr '[:lower:]' '[:upper:]')
+    echo "DRN-${random}"
+}
+
+get_file_size_mb() {
+    local file="$1"
+    local size_bytes
+    size_bytes=$(stat -f%z "$file" 2&gt;/dev/null || stat -c%s "$file" 2&gt;/dev/null)
+    echo "scale=2; $size_bytes / 1024 / 1024" | bc
+}
+
+get_file_size_label() {
+    local file="$1"
+    local size_mb
+    size_mb=$(get_file_size_mb "$file")
+    echo "${size_mb} MB"
+}
+
+is_valid_mbtiles() {
+    local file="$1"
+    if [ ! -f "$file" ] || [ ! -r "$file" ]; then return 1; fi
+    if ! sqlite3 "$file" ".tables" 2&gt;/dev/null | grep -q "tiles"; then
+        log_error "Invalid MBTiles file (no tiles table): $file"
+        return 1
+    fi
+    local tile_count
+    tile_count=$(sqlite3 "$file" "SELECT COUNT(*) FROM tiles;" 2&gt;/dev/null || echo "0")
+    if [ "$tile_count" -eq 0 ]; then
+        log_error "MBTiles file has no tiles: $file"
+        return 1
+    fi
+    return 0
+}
+
+generate_title() {
+    local filename="$1"
+    local title
+    title=$(basename "$filename" .mbtiles)
+    title=$(echo "$title" | sed 's/[_-]/ /g' | sed 's/  */ /g' | sed 's/^ *//;s/ *$//')
+    [ -z "$title" ] && title="Citra Drone"
+    echo "$title"
+}
+
+check_mc() {
+    if ! command -v mc &gt;/dev/null 2&gt;&amp;1; then
+        log_error "mc (MinIO Client) tidak ditemukan. Install dari: https://min.io/docs/minio/linux/reference/minio-mc.html"
+        exit 1
+    fi
+}
+
+check_psql() {
+    if ! command -v psql &gt;/dev/null 2&gt;&amp;1; then
+        log_error "psql tidak ditemukan. Install dari: https://www.postgresql.org/download/"
+        exit 1
+    fi
+}
+
+configure_minio() {
+    local alias_name="bulk_upload_minio"
+    log_info "Configuring MinIO client..."
+    if mc alias set "$alias_name" "$S3_HOST" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" --insecure &gt;/dev/null 2&gt;&amp;1; then
+        log_success "MinIO client configured"
+        echo "$alias_name"
+    else
+        log_error "Failed to configure MinIO client"
+        exit 1
+    fi
+}
+
+check_minio_exists() {
+    local alias_name="$1"
+    local filename="$2"
+    mc stat "$alias_name/$S3_BUCKET/$S3_PATH/$filename" --insecure &gt;/dev/null 2&gt;&amp;1
+}
+
+check_database_exists() {
+    local storage_path="$1"
+    local sql="SELECT id FROM $DB_TABLE WHERE storage_path = '$storage_path' LIMIT 1;"
+    [ -n "$DB_PASSWORD" ] &amp;&amp; export PGPASSWORD="$DB_PASSWORD"
+    local result
+    result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "$sql" 2&gt;&amp;1)
+    local exit_code=$?
+    unset PGPASSWORD
+    [ $exit_code -eq 0 ] &amp;&amp; [ -n "$(echo "$result" | tr -d '[:space:]')" ]
+}
+
+# Cek berdasarkan nama file asli (tanpa timestamp prefix)
+# Agar tidak upload ulang pada run berikutnya
+check_database_exists_by_original() {
+    local original_filename="$1"
+    local sql="SELECT id FROM $DB_TABLE WHERE storage_path LIKE '%_${original_filename}' LIMIT 1;"
+    [ -n "$DB_PASSWORD" ] &amp;&amp; export PGPASSWORD="$DB_PASSWORD"
+    local result
+    result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "$sql" 2&gt;&amp;1)
+    local exit_code=$?
+    unset PGPASSWORD
+    [ $exit_code -eq 0 ] &amp;&amp; [ -n "$(echo "$result" | tr -d '[:space:]')" ]
+}
+
+generate_timestamp_prefix() {
+    date +%s%3N
+}
+
+trigger_webhook() {
+    local filename="$1"
+    local tahun="$2"
+    local bulan="$3"
+    local bpdas="$4"
+
+    [ "$WEBHOOK_ENABLED" != "true" ] &amp;&amp; return 0
+    if [ "$DRY_RUN" = true ]; then
+        log_info "DRY RUN: Would trigger webhook for $filename"
+        return 0
+    fi
+
+    log_info "Triggering webhook for: $filename"
+
+    local extra_fields=""
+    [ -n "$bpdas"  ] &amp;&amp; extra_fields="${extra_fields},\n        \"bpdas\": \"$bpdas\""
+    [ -n "$tahun"  ] &amp;&amp; extra_fields="${extra_fields},\n        \"tahun\": \"$tahun\""
+    [ -n "$bulan"  ] &amp;&amp; extra_fields="${extra_fields},\n        \"bulan\": \"$bulan\""
+
+    local payload
+    payload=$(cat &lt;&lt;EOF
+{
+  "EventName": "s3:ObjectCreated:Put",
+  "Key": "$S3_PATH/$filename",
+  "Records": [{
+    "eventVersion": "2.0",
+    "eventSource": "minio:s3",
+    "eventName": "s3:ObjectCreated:Put",
+    "s3": {
+      "configurationId": "Config",
+      "bucket": { "name": "$S3_BUCKET", "arn": "arn:aws:s3:::$S3_BUCKET" },
+      "object": {
+        "key": "$S3_PATH/$filename",
+        "size": 0,
+        "contentType": "application/octet-stream"$(printf "%b" "$extra_fields")
+      }
+    }
+  }]
+}
+EOF
+)
+
+    local response
+    response=$(curl -X POST "$WEBHOOK_URL" \
+        -H "Content-Type: application/json" \
+        -H "User-Agent: MinIO" \
+        -H "X-Webhook-Secret: ${WEBHOOK_SECRET}" \
+        -d "$payload" \
+        --silent --write-out "\n%{http_code}" --max-time 120 2&gt;&amp;1)
+
+    local http_code
+    http_code=$(echo "$response" | tail -n1)
+    local body
+    body=$(echo "$response" | sed '$d')
+
+    log_info "Webhook response (HTTP $http_code): $body"
+
+    if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+        log_success "Webhook triggered successfully (HTTP $http_code)"
+    else
+        log_warn "Webhook returned HTTP $http_code — upload tetap dilanjutkan"
+    fi
+    return 0
+}
+
+upload_to_minio() {
+    local file="$1"
+    local alias_name="$2"
+    local filename="$3"
+
+    log_info "Uploading: $filename ($(get_file_size_label "$file"))"
+
+    if [ "$DRY_RUN" = true ]; then
+        log_warn "DRY RUN: Would upload $filename to MinIO"
+        echo "$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
+        return 0
+    fi
+
+    local upload_output
+    upload_output=$(mc cp "$file" "$alias_name/$S3_BUCKET/$S3_PATH/$filename" --insecure 2&gt;&amp;1)
+    local upload_exit=$?
+
+    if [ $upload_exit -eq 0 ]; then
+        log_success "Uploaded: $filename"
+        echo "$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
+        return 0
+    else
+        log_error "Failed to upload: $filename — $upload_output"
+        return 1
+    fi
+}
+
+extract_coordinates() {
+    local mbtiles_file="$1"
+    local bounds
+    bounds=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='bounds';" 2&gt;/dev/null || echo "")
+
+    if [ -n "$bounds" ]; then
+        local west south east north
+        west=$(echo "$bounds" | cut -d',' -f1)
+        south=$(echo "$bounds" | cut -d',' -f2)
+        east=$(echo "$bounds" | cut -d',' -f3)
+        north=$(echo "$bounds" | cut -d',' -f4)
+        local lat lon
+        if command -v bc &gt;/dev/null 2&gt;&amp;1; then
+            lat=$(echo "scale=6; ($south + $north) / 2" | bc 2&gt;/dev/null || echo "-0.469")
+            lon=$(echo "scale=6; ($west + $east) / 2"  | bc 2&gt;/dev/null || echo "117.172")
+        else
+            lat=$(awk "BEGIN {printf \"%.6f\", ($south + $north) / 2}" 2&gt;/dev/null || echo "-0.469")
+            lon=$(awk "BEGIN {printf \"%.6f\", ($west + $east) / 2}"  2&gt;/dev/null || echo "117.172")
+        fi
+        echo "$lat,$lon"
+        return 0
+    fi
+
+    local center
+    center=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='center';" 2&gt;/dev/null || echo "")
+    if [ -n "$center" ]; then
+        local lon lat
+        lon=$(echo "$center" | cut -d',' -f1)
+        lat=$(echo "$center" | cut -d',' -f2)
+        echo "$lat,$lon"
+        return 0
+    fi
+
+    echo "-0.469,117.172"
+}
+
+detect_bpdas_from_mbtiles() {
+    local mbtiles_file="$1"
+    local meta_bpdas
+    meta_bpdas=$(sqlite3 "$mbtiles_file" "SELECT value FROM metadata WHERE name='bpdas';" 2&gt;/dev/null || echo "")
+    if [ -n "$meta_bpdas" ]; then
+        echo "$meta_bpdas" | tr '[:lower:]' '[:upper:]' | tr -d ' '
+        return 0
+    fi
+
+    local coords lat lon
+    coords=$(extract_coordinates "$mbtiles_file")
+    lat=$(echo "$coords" | cut -d',' -f1)
+    lon=$(echo "$coords" | cut -d',' -f2)
+    [ "$lat" = "-0.469" ] &amp;&amp; [ "$lon" = "117.172" ] &amp;&amp; return 1
+
+    [ -n "$DB_PASSWORD" ] &amp;&amp; export PGPASSWORD="$DB_PASSWORD"
+    local result
+    result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -A -c \
+        "SELECT wil_kerja FROM geoportal.\"WILAYAH_KERJA\"
+         WHERE ST_Contains(ST_Transform(geom, 4326), ST_SetSRID(ST_MakePoint($lon, $lat), 4326))
+         LIMIT 1;" 2&gt;/dev/null || echo "")
+    unset PGPASSWORD
+
+    if [ -n "$result" ]; then
+        echo "$result" | tr '[:lower:]' '[:upper:]' | tr -d ' '
+        return 0
+    fi
+    return 1
+}
+
+insert_to_database() {
+    local id="$1" title="$2" filename="$3" file_size_label="$4"
+    local storage_path="$5" status="$6" operator="$7" location="$8"
+    local bpdas="$9" mbtiles_file="${10}" tahun="${11}" bulan="${12}"
+
+    log_info "Inserting to database: $id"
+
+    local coords lat longitude
+    coords=$(extract_coordinates "$mbtiles_file")
+    lat=$(echo "$coords" | cut -d',' -f1)
+    longitude=$(echo "$coords" | cut -d',' -f2)
+    log_info "  Coordinates: lat=$lat, lon=$longitude"
+
+    local captured_at_sql="NULL" captured_display_sql="NULL"
+    if [ -n "$tahun" ] &amp;&amp; [ -n "$bulan" ]; then
+        local bulan_padded bulan_name
+        bulan_padded=$(printf "%02d" "$bulan")
+        bulan_name=$(month_name_id "$bulan")
+        captured_at_sql="'${tahun}-${bulan_padded}-01T00:00:00+07:00'"
+        captured_display_sql="'1 ${bulan_name} ${tahun}'"
+        log_info "  Captured: 1 ${bulan_name} ${tahun}"
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        log_warn "DRY RUN: Would insert record — ID: $id, File: $filename, Status: $status"
+        return 0
+    fi
+
+    local sql="
+        INSERT INTO $DB_TABLE (
+            id, title, thumbnail_url, captured_at, captured_display,
+            location_label, bpdas, format_label, file_size_label,
+            operator_name, mission_summary, weather_notes, status, notes,
+            storage_path, map_preview_url, latitude, longitude
+        ) VALUES (
+            '$id', '$title', NULL,
+            $captured_at_sql, $captured_display_sql,
+            $([ -n "$location" ] &amp;&amp; echo "'$location'" || echo "NULL"),
+            $([ -n "$bpdas"    ] &amp;&amp; echo "'$bpdas'"    || echo "NULL"),
+            'MBTILES', '$file_size_label',
+            $([ -n "$operator" ] &amp;&amp; echo "'$operator'" || echo "NULL"),
+            NULL, NULL,
+            '$status'::pmn_drone_status,
+            'Bulk upload otomatis dari berkas $filename',
+            '$storage_path', NULL, $lat, $longitude
+        ) ON CONFLICT (id) DO NOTHING RETURNING id;"
+
+    [ -n "$DB_PASSWORD" ] &amp;&amp; export PGPASSWORD="$DB_PASSWORD"
+    local result
+    result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "$sql" 2&gt;&amp;1)
+    local exit_code=$?
+    unset PGPASSWORD
+
+    if [ $exit_code -eq 0 ] &amp;&amp; echo "$result" | grep -q "$id"; then
+        log_success "Inserted to database: $id"
+        return 0
+    elif echo "$result" | grep -q "duplicate key"; then
+        log_warn "Record already exists: $id"
+        return 0
+    else
+        log_error "Failed to insert: $result"
+        return 1
+    fi
+}
+
+process_file() {
+    local file="$1" alias_name="$2" status="$3" operator="$4"
+    local location="$5" bpdas="$6" tahun="$7" bulan="$8"
+
+    local original_filename
+    original_filename=$(basename "$file")
+
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    log_info "Processing: $original_filename"
+    echo "═══════════════════════════════════════════════════════════════"
+
+    if ! is_valid_mbtiles "$file"; then
+        log_error "Skipping invalid file: $original_filename"
+        return 1
+    fi
+
+    # Skip jika sudah pernah diupload (cek berdasarkan nama file asli)
+    if check_database_exists_by_original "$original_filename"; then
+        log_warn "Already uploaded in a previous run: $original_filename — skipping"
+        return 2
+    fi
+
+    local resolved_bpdas="$bpdas"
+    if [ -z "$resolved_bpdas" ]; then
+        log_info "Mendeteksi BPDAS otomatis dari koordinat..."
+        resolved_bpdas=$(detect_bpdas_from_mbtiles "$file") || resolved_bpdas=""
+        if [ -n "$resolved_bpdas" ]; then
+            log_info "  Auto-detected BPDAS: $resolved_bpdas"
+        else
+            log_warn "  Tidak dapat mendeteksi BPDAS — upload tanpa BPDAS"
+        fi
+    fi
+
+    local timestamp_prefix
+    timestamp_prefix=$(generate_timestamp_prefix)
+    local filename="${timestamp_prefix}_${original_filename}"
+    local storage_path="$S3_HOSTNAME/$S3_BUCKET/$S3_PATH/$filename"
+
+    log_info "New filename: $filename"
+
+    # Cek duplikat berdasarkan storage_path lengkap
+    if check_minio_exists "$alias_name" "$filename"; then
+        log_warn "File already exists in MinIO: $filename"
+        if check_database_exists "$storage_path"; then
+            log_warn "Skipping (already in DB): $filename"
+            return 2
+        fi
+    fi
+
+    local id title file_size_label
+    id=$(generate_id)
+    title=$(generate_title "$original_filename")
+    file_size_label=$(get_file_size_label "$file")
+
+    log_info "ID: $id | Title: $title | Size: $file_size_label"
+
+    if check_database_exists "$storage_path"; then
+        log_warn "Record already exists in DB: $storage_path"
+        return 2
+    fi
+
+    # Step 1: Insert ke database
+    log_info "Step 1/3: Inserting to database..."
+    if ! insert_to_database "$id" "$title" "$original_filename" "$file_size_label" \
+        "$storage_path" "$status" "$operator" "$location" "$resolved_bpdas" \
+        "$file" "$tahun" "$bulan"; then
+        log_error "Database insert failed: $filename"
+        return 1
+    fi
+
+    # Step 2: Upload ke MinIO
+    log_info "Step 2/3: Uploading to MinIO..."
+    if [ "$DRY_RUN" = true ]; then
+        log_warn "DRY RUN: Would upload to MinIO"
+    elif check_minio_exists "$alias_name" "$filename"; then
+        log_info "File already in MinIO: $filename"
+    else
+        upload_to_minio "$file" "$alias_name" "$filename" || {
+            log_error "Upload failed: $filename"
+            return 1
+        }
+        check_minio_exists "$alias_name" "$filename" || {
+            log_error "Upload verification failed: $filename"
+            return 1
+        }
+        log_success "Upload verified: $filename"
+    fi
+
+    # Step 3: Trigger webhook
+    log_info "Step 3/3: Triggering webhook..."
+    trigger_webhook "$filename" "$tahun" "$bulan" "$resolved_bpdas"
+
+    log_success "Completed: $filename"
+    return 0
+}
+
+# =============================================================================
+# Main Script
+# =============================================================================
+
+usage() {
+    cat &lt;&lt; EOF
+Usage: $0 &lt;source_folder&gt; [options]
+
+Bulk upload MBTiles files to MinIO and insert records to PostgreSQL database.
+
+Arguments:
+  source_folder           Path to folder containing .mbtiles files
+
+Options:
+  --status &lt;status&gt;       Set status (Aktif, Perlu Review, Arsip, Dalam Proses, Butuh Perbaikan)
+                          Default: "Dalam Proses"
+  --operator &lt;name&gt;       Set operator name
+  --location &lt;location&gt;   Set location label
+  --bpdas &lt;code&gt;          Set BPDAS code (uppercase, auto-detected if omitted)
+  --tahun &lt;year&gt;          Set acquisition year (e.g. 2026)
+  --bulan &lt;month&gt;         Set acquisition month 1-12 (gunakan dengan --tahun)
+  --dry-run               Simulasi tanpa upload/insert sesungguhnya
+  --help                  Tampilkan bantuan ini
+
+Examples:
+  $0 "/path/to/mbtiles/" --tahun 2026 --bulan 6 --status "Aktif"
+  $0 "/path/to/mbtiles/" --tahun 2026 --bulan 6 --bpdas "BPDASMAHAKAMBERAU" --status "Aktif"
+  $0 "/path/to/mbtiles/" --dry-run
+EOF
+    exit 0
+}
+
+# Parse arguments
+SOURCE_FOLDER=""
+STATUS="$DEFAULT_STATUS"
+OPERATOR="$DEFAULT_OPERATOR"
+LOCATION="$DEFAULT_LOCATION"
+BPDAS="$DEFAULT_BPDAS"
+TAHUN="$DEFAULT_TAHUN"
+BULAN="$DEFAULT_BULAN"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --help|-h) usage ;;
+        --status)   STATUS="$2";                         shift 2 ;;
+        --operator) OPERATOR="$2";                       shift 2 ;;
+        --location) LOCATION="$2";                       shift 2 ;;
+        --bpdas)    BPDAS=$(echo "$2" | tr '[:lower:]' '[:upper:]'); shift 2 ;;
+        --tahun)    TAHUN="$2";                          shift 2 ;;
+        --bulan)    BULAN="$2";                          shift 2 ;;
+        --dry-run)  DRY_RUN=true;                        shift   ;;
+        *)
+            if [ -z "$SOURCE_FOLDER" ]; then SOURCE_FOLDER="$1"
+            else log_error "Unknown argument: $1"; usage; fi
+            shift ;;
+    esac
+done
+
+if [ -z "$SOURCE_FOLDER" ]; then log_error "Source folder wajib diisi"; usage; fi
+if [ ! -d "$SOURCE_FOLDER" ]; then log_error "Folder tidak ditemukan: $SOURCE_FOLDER"; exit 1; fi
+
+case "$STATUS" in
+    "Aktif"|"Perlu Review"|"Arsip"|"Dalam Proses"|"Butuh Perbaikan") ;;
+    *) log_error "Status tidak valid: $STATUS"; exit 1 ;;
+esac
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "  Bulk Upload MBTiles to MinIO &amp; PostgreSQL"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo "Source Folder : $SOURCE_FOLDER"
+echo "Status        : $STATUS"
+echo "Operator      : ${OPERATOR:-&lt;tidak diisi&gt;}"
+echo "BPDAS         : ${BPDAS:-&lt;auto-detect&gt;}"
+echo "Tahun         : ${TAHUN:-&lt;tidak diisi&gt;}"
+echo "Bulan         : ${BULAN:-&lt;tidak diisi&gt;}"
+echo "Dry Run       : $DRY_RUN"
+echo ""
+echo "MinIO  : $S3_HOST / $S3_BUCKET / $S3_PATH"
+echo "DB     : $DB_HOST:$DB_PORT / $DB_NAME / $DB_TABLE"
+echo ""
+
+if [ "$DRY_RUN" = false ]; then
+    check_mc
+    check_psql
+fi
+
+MC_ALIAS=$(configure_minio)
+
+log_info "Scanning: $SOURCE_FOLDER"
+MBTILES_FILES_ARRAY=()
+while IFS= read -r line; do
+    MBTILES_FILES_ARRAY+=("$line")
+done &lt; &lt;(find "$SOURCE_FOLDER" -maxdepth 1 -type f -name "*.mbtiles" | sort)
+
+FILE_COUNT=${#MBTILES_FILES_ARRAY[@]}
+
+if [ "$FILE_COUNT" -eq 0 ]; then
+    log_error "Tidak ada file .mbtiles di: $SOURCE_FOLDER"
+    exit 1
+fi
+
+log_info "Found $FILE_COUNT MBTiles file(s)"
+echo ""
+
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+SKIPPED_COUNT=0
+
+for file in "${MBTILES_FILES_ARRAY[@]}"; do
+    process_file "$file" "$MC_ALIAS" "$STATUS" "$OPERATOR" "$LOCATION" \
+                 "$BPDAS" "$TAHUN" "$BULAN" &amp;&amp; exit_code=0 || exit_code=$?
+    if   [ $exit_code -eq 0 ]; then SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    elif [ $exit_code -eq 2 ]; then SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+    else                             FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
+done
+
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo "  SUMMARY"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo "Total files : $FILE_COUNT"
+echo "✓ Success   : $SUCCESS_COUNT"
+echo "⊙ Skipped   : $SKIPPED_COUNT"
+echo "✗ Failed    : $FAILED_COUNT"
+echo ""
+
+[ "$DRY_RUN" = true ] &amp;&amp; log_warn "DRY RUN completed — tidak ada perubahan sesungguhnya"
+[ $FAILED_COUNT -gt 0 ] &amp;&amp; { log_warn "Beberapa file gagal. Periksa log di atas."; exit 1; }
+</div>
+    </div>
+  </div><!-- /lampiran -->
+
+</div><!-- /page -->
